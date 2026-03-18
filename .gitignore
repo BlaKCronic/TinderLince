@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase logs
+firebase-debug.log
+firebug-*.log
+
+# Node dependencies
+node_modules/
+
+# Local emulators data
+.firebase/
