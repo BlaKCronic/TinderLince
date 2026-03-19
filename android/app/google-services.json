@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "440636374049",
+    "project_id": "tinder-lince-zaid",
+    "storage_bucket": "tinder-lince-zaid.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:440636374049:android:724bc5a7988de59748f760",
+        "android_client_info": {
+          "package_name": "com.example.tinder_lince"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "440636374049-4he5qciahe2k3m39riejhihvntd2pih2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxm7u37rPLkkfEtN5yUeZ2DBxEOqNM7J4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "440636374049-4he5qciahe2k3m39riejhihvntd2pih2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "440636374049-858rsibt0nr7jhqtkh05977hirid9irk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.tinderLince"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

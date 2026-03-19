@@ -54,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
 
       final doc = await FirebaseFirestore.instance
-          .collection('usuarios')
+          .collection('usuario')
           .doc(user.uid)
           .get();
 

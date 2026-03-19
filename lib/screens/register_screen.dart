@@ -1,4 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import 'profile_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -55,7 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     return {'nombre': nombre, 'apellido': apellido};
   }
 
-  void _handleRegister() async {
+  Future<void> _handleRegister() async {
     if (!_acceptTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -69,22 +73,76 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
       return;
     }
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      final nombreData = _splitNombreCompleto(_nombreController.text);
-      // TODO: Firebase auth createUserWithEmailAndPassword
-      // Luego guardar en Firestore usuarios collection:
-      // {
-      //   nombre: nombreData['nombre'],
-      //   apellido: nombreData['apellido'],
-      //   email_institucional: _emailController.text,
-      //   fecha_registro: DateTime.now(),
-      //   activo: true,
-      //   fotos: [],
-      //   intereses: [],
-      // }
-      await Future.delayed(const Duration(milliseconds: 1200));
-      setState(() => _isLoading = false);
+
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+    final nombreData = _splitNombreCompleto(_nombreController.text);
+
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      final user = credential.user;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('usuario')
+            .doc(user.uid)
+            .set({
+          'nombre': nombreData['nombre'],
+          'apellido': nombreData['apellido'],
+          'email_institucional': email,
+          'fecha_registro': FieldValue.serverTimestamp(),
+          'ultima_conexion': FieldValue.serverTimestamp(),
+          'activo': true,
+          'fotos': <String>[],
+          'intereses': <String>[],
+          'genero': <String>[],
+          'biografia': '',
+          'carrera': '',
+          'edad': '',
+          'foto_perfil': '',
+        });
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          pageBuilder: (_, a, b) => const ProfileScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      final message = switch (e.code) {
+        'email-already-in-use' =>
+            'Este correo ya está registrado. Intenta iniciar sesión.',
+        'weak-password' => 'La contraseña es muy débil. Usa al menos 8 caracteres.',
+        'invalid-email' => 'Correo inválido.',
+        _ => 'Error al crear la cuenta. Intenta de nuevo.',
+      };
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Error al crear la cuenta. Verifica tu conexión e inténtalo de nuevo.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
