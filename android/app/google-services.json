@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "440636374049-n7c2fcolku2ga8nt5cdm8i87nrm2asma.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tinder_lince",
+            "certificate_hash": "a6aa595cd41f97442abcc529f2b824055c18579c"
+          }
+        },
+        {
           "client_id": "440636374049-4he5qciahe2k3m39riejhihvntd2pih2.apps.googleusercontent.com",
           "client_type": 3
         }

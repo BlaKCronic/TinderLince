@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -116,6 +117,29 @@ class _ProfileScreenState extends State<ProfileScreen>
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     _redirectToLogin();
+  }
+
+  Future<void> _navigateToEditProfile() async {
+    // 1. Navegamos y esperamos el resultado
+    final bool? guardadoExitoso = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(userData: _userData!),
+      ),
+    );
+
+    // 2. Si el resultado es 'true', recargamos los datos de Firestore
+    if (guardadoExitoso == true) {
+      _loadUserProfile(); // Esta es la función que ya tienes para traer datos
+      
+      // Opcional: Mostrar un mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Perfil actualizado con éxito!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   void _redirectToLogin() {
@@ -300,6 +324,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       backgroundColor: _bgDark,
       elevation: 0,
       actions: [
+        IconButton(
+          icon: const Icon(Icons.edit_rounded, color: Colors.white70),
+          onPressed: _navigateToEditProfile, // Llamamos a nuestra función
+        ),
         // ── 6. Botón de cerrar sesión ──────────────────────────────────────
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
