@@ -165,9 +165,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ── 5. Campos opcionales con valor por defecto ─────────────────────────────
   String get _bio =>
-      (_userData?['bio'] as String?)?.trim().isEmpty ?? true
+      (_userData?['biografia'] as String?)?.trim().isEmpty ?? true
           ? 'Sin biografía aún'
-          : _userData!['bio'];
+          : _userData!['biografia'];
 
   String? get _fotoPerfil => _userData?['foto_perfil'];
 
@@ -271,6 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildProfileContent() {
     return Stack(
       children: [
+        
         // Fondo con gradiente
         Container(
           decoration: const BoxDecoration(
@@ -283,7 +284,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         ),
         // Contenido scrolleable
+        RefreshIndicator(
+        onRefresh: _loadUserProfile, // Reutiliza tu función existente
+        color: _greenGlow,
+        backgroundColor: _bgMid,
+        child:
         CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             _buildSliverAppBar(),
             SliverToBoxAdapter(
@@ -301,6 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
           ],
+        ),
         ),
         // Overlay de logout cargando
         if (_isLoggingOut)
