@@ -35,11 +35,12 @@ class MainApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF3A8A1C),
-          brightness: Brightness.light,
+          seedColor: const Color(0xFFFF4D6D),
+          brightness: Brightness.dark,
         ),
         useMaterial3: true,
-        fontFamily: 'Roboto',
+        fontFamily: 'InterTight',
+        scaffoldBackgroundColor: const Color(0xFF121212),
       ),
       home: const AuthGate(),
     );
@@ -56,14 +57,17 @@ class AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: Color(0xFF121212),
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(Color(0xFFFF4D6D)),
+              ),
+            ),
           );
         }
-
         if (snapshot.hasData) {
           return const ProfileScreen();
         }
-
         return const LoginScreen();
       },
     );

@@ -15,8 +15,7 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  // 1. Inputs cargados con info actual
+
   late TextEditingController _nombreController;
   late TextEditingController _apellidoController;
   late TextEditingController _bioController;
@@ -26,64 +25,79 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isSaving = false;
   String? _currentImageUrl;
 
-  static const _bgDark = Color(0xFF0A1F0A);
-  static const _greenGlow = Color(0xFF6DCC6D);
-  static const _greenAccent = Color(0xFF4CAF50);
-  static const _cardBg = Color(0xFF152415);
+  // ── Paleta ─────────────────────────────────────────────────────────────────
+  static const _bg = Color(0xFF121212);
+  static const _surface = Color(0xFF1E1E1E);
+  static const _inputFill = Color(0xFF252525);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
 
   @override
   void initState() {
     super.initState();
-    _nombreController = TextEditingController(text: widget.userData['nombre']);
-    _apellidoController = TextEditingController(text: widget.userData['apellido']);
-    _bioController = TextEditingController(text: widget.userData['biografia']);
-    _carreraController = TextEditingController(text: widget.userData['carrera']);
+    _nombreController =
+        TextEditingController(text: widget.userData['nombre']);
+    _apellidoController =
+        TextEditingController(text: widget.userData['apellido']);
+    _bioController =
+        TextEditingController(text: widget.userData['biografia']);
+    _carreraController =
+        TextEditingController(text: widget.userData['carrera']);
     _currentImageUrl = widget.userData['foto_perfil'];
   }
 
-  // Selección de imagen 
-  Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (pickedFile != null) {
-      setState(() => _imageFile = File(pickedFile.path));
-    }
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _apellidoController.dispose();
+    _bioController.dispose();
+    _carreraController.dispose();
+    super.dispose();
   }
 
-  // Lógica de Guardado 
-  Future<void> _saveChanges() async {
-    if (!_formKey.currentState!.validate()) return; // Validación (Checklist #7)
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 75);
+    if (picked != null) setState(() => _imageFile = File(picked.path));
+  }
 
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     try {
-      String? finalImageUrl = _currentImageUrl;
-
-      // Subida a Storage si hay imagen nueva 
+      String? finalUrl = _currentImageUrl;
       if (_imageFile != null) {
-        final ref = FirebaseStorage.instance.ref().child('perfiles/${user.uid}.jpg');
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('perfiles/${user.uid}.jpg');
         await ref.putFile(_imageFile!);
-        finalImageUrl = await ref.getDownloadURL();
+        finalUrl = await ref.getDownloadURL();
       }
-
-      // Actualización en Firestore 
-      await FirebaseFirestore.instance.collection('usuario').doc(user.uid).update({
+      await FirebaseFirestore.instance
+          .collection('usuario')
+          .doc(user.uid)
+          .update({
         'nombre': _nombreController.text.trim(),
         'apellido': _apellidoController.text.trim(),
         'biografia': _bioController.text.trim(),
         'carrera': _carreraController.text.trim(),
-        'foto_perfil': finalImageUrl,
+        'foto_perfil': finalUrl,
         'ultima_actualizacion': FieldValue.serverTimestamp(),
       });
-
-      if (mounted) Navigator.pop(context, true); // Retornar éxito
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      // Mensaje de error 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error de conexión: $e'), backgroundColor: Colors.redAccent),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: _pinkStart,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -93,42 +107,78 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgDark,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('EDITAR PERFIL', style: TextStyle(letterSpacing: 2, fontSize: 16)),
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context), // Cancelar 
-        ),
-        actions: [
-          if (!_isSaving)
-            TextButton(
-              onPressed: _saveChanges,
-              child: const Text('GUARDAR', style: TextStyle(color: _greenGlow, fontWeight: FontWeight.bold)),
-            ),
-        ],
-      ),
+      backgroundColor: _bg,
+      appBar: _buildAppBar(),
       body: Stack(
         children: [
           Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
               children: [
                 _buildImageEdit(),
-                const SizedBox(height: 30),
-                _buildTextField('Nombre', _nombreController, Icons.person_outline),
-                _buildTextField('Apellido', _apellidoController, Icons.person_outline),
-                _buildTextField('Carrera', _carreraController, Icons.school_outlined),
-                _buildTextField('Biografía', _bioController, Icons.article_outlined, maxLines: 3),
+                const SizedBox(height: 32),
+                _buildTextField(
+                    'Nombre', _nombreController, Icons.person_outline_rounded),
+                _buildTextField('Apellido', _apellidoController,
+                    Icons.person_outline_rounded),
+                _buildTextField(
+                    'Carrera', _carreraController, Icons.school_outlined),
+                _buildTextField(
+                    'Biografía', _bioController, Icons.article_outlined,
+                    maxLines: 3),
               ],
             ),
           ),
-          if (_isSaving) _buildLoadingOverlay() // Indicador progreso 
+          if (_isSaving) _buildLoadingOverlay(),
         ],
       ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: _bg,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.close_rounded, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: const Text(
+        'EDITAR PERFIL',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 2,
+        ),
+      ),
+      centerTitle: true,
+      actions: [
+        if (!_isSaving)
+          GestureDetector(
+            onTap: _saveChanges,
+            child: Container(
+              margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [_pinkStart, _orangeEnd]),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Center(
+                child: Text(
+                  'Guardar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -136,31 +186,59 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Center(
       child: Stack(
         children: [
+          // ── Avatar con borde gradiente ─────────────────────────────────
           Container(
-            width: 130,
-            height: 130,
+            width: 120,
+            height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: _greenGlow, width: 2),
-              boxShadow: [BoxShadow(color: _greenGlow.withOpacity(0.2), blurRadius: 20)],
+              gradient: const LinearGradient(
+                colors: [_pinkStart, _orangeEnd],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _pinkStart.withOpacity(0.4),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
+            padding: const EdgeInsets.all(3),
             child: ClipOval(
               child: _imageFile != null
                   ? Image.file(_imageFile!, fit: BoxFit.cover)
-                  : (_currentImageUrl != null 
+                  : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty
                       ? Image.network(_currentImageUrl!, fit: BoxFit.cover)
-                      : const Icon(Icons.person, size: 80, color: Colors.white24)),
+                      : Container(
+                          color: _inputFill,
+                          child: const Icon(Icons.person_rounded,
+                              size: 60, color: Color(0xFF444444)),
+                        )),
             ),
           ),
+          // ── Botón cámara ───────────────────────────────────────────────
           Positioned(
             bottom: 0,
             right: 0,
             child: GestureDetector(
               onTap: _pickImage,
-              child: CircleAvatar(
-                backgroundColor: _greenAccent,
-                radius: 20,
-                child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd]),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8)
+                  ],
+                ),
+                child: const Icon(Icons.camera_alt_rounded,
+                    color: Colors.white, size: 18),
               ),
             ),
           ),
@@ -169,38 +247,80 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, IconData icon, {int maxLines = 1}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    int maxLines = 1,
+  }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: _greenGlow, fontSize: 12),
-          prefixIcon: Icon(icon, color: _greenGlow, size: 20),
-          filled: true,
-          fillColor: _cardBg,
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _greenGlow)),
-        ),
-        validator: (value) => value!.isEmpty ? 'Este campo es obligatorio' : null,
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3)),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: controller,
+            maxLines: maxLines,
+            style: const TextStyle(color: _textPrimary, fontSize: 15),
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: _textSecondary, size: 20),
+              filled: true,
+              fillColor: _inputFill,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF2E2E2E))),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+              errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _pinkStart)),
+              focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+              errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
+            ),
+            validator: (v) =>
+                v == null || v.trim().isEmpty ? 'Campo obligatorio' : null,
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildLoadingOverlay() {
     return Container(
-      color: Colors.black87,
-      child: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(_greenGlow)),
-            SizedBox(height: 20),
-            Text('Actualizando perfil...', style: TextStyle(color: Colors.white)),
-          ],
+      color: Colors.black.withOpacity(0.85),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(_pinkStart),
+              ),
+              SizedBox(height: 18),
+              Text('Guardando cambios...',
+                  style: TextStyle(color: _textSecondary, fontSize: 14)),
+            ],
+          ),
         ),
       ),
     );

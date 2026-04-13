@@ -19,13 +19,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isLoggingOut = false;
   String? _errorMessage;
 
-  // Colores del tema
-  static const _bgDark = Color(0xFF0A1F0A);
-  static const _bgMid = Color(0xFF0F2E0F);
-  static const _greenGlow = Color(0xFF6DCC6D);
-  static const _greenAccent = Color(0xFF4CAF50);
-  static const _cardBg = Color(0xFF152415);
-  static const _tabBg = Color(0xFF1A3A1A);
+  // ── Paleta ─────────────────────────────────────────────────────────────────
+  static const _bg = Color(0xFF121212);
+  static const _surface = Color(0xFF1E1E1E);
+  static const _card = Color(0xFF252525);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _matchGreen = Color(0xFF4CAF50);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
 
   @override
   void initState() {
@@ -40,79 +42,53 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.dispose();
   }
 
-  // ── 1. Carga de datos desde Firestore ──────────────────────────────────────
   Future<void> _loadUserProfile() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        _redirectToLogin();
-        return;
-      }
-
+      if (user == null) { _redirectToLogin(); return; }
       final doc = await FirebaseFirestore.instance
           .collection('usuario')
           .doc(user.uid)
           .get();
-
       if (!mounted) return;
-
       if (doc.exists) {
-        setState(() {
-          _userData = doc.data();
-          _isLoading = false;
-        });
+        setState(() { _userData = doc.data(); _isLoading = false; });
       } else {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'No se encontró el perfil del usuario.';
-        });
+        setState(() { _isLoading = false; _errorMessage = 'Perfil no encontrado.'; });
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Error al cargar el perfil. Intenta de nuevo.';
-      });
+      setState(() { _isLoading = false; _errorMessage = 'Error al cargar el perfil.'; });
     }
   }
 
-  // ── 6. Cerrar sesión ───────────────────────────────────────────────────────
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Cerrar sesión',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          '¿Estás seguro de que deseas cerrar sesión?',
-          style: TextStyle(color: Color(0xFFB0CCB0)),
-        ),
+        backgroundColor: _surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Cerrar sesión',
+            style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w700)),
+        content: const Text('¿Estás seguro?',
+            style: TextStyle(color: _textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: _greenAccent)),
+            child: const Text('Cancelar', style: TextStyle(color: _textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Cerrar sesión',
-                style: TextStyle(color: Colors.redAccent)),
+            child: const Text('Salir', style: TextStyle(color: _pinkStart)),
           ),
         ],
       ),
     );
-
     if (confirmed != true || !mounted) return;
-
     setState(() => _isLoggingOut = true);
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
@@ -120,25 +96,19 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _navigateToEditProfile() async {
-    // 1. Navegamos y esperamos el resultado
-    final bool? guardadoExitoso = await Navigator.push(
+    final bool? ok = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditProfileScreen(userData: _userData!),
-      ),
+          builder: (_) => EditProfileScreen(userData: _userData!)),
     );
-
-    // 2. Si el resultado es 'true', recargamos los datos de Firestore
-    if (guardadoExitoso == true) {
-      _loadUserProfile(); // Esta es la función que ya tienes para traer datos
-      
-      // Opcional: Mostrar un mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Perfil actualizado con éxito!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    if (ok == true) {
+      _loadUserProfile();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('¡Perfil actualizado!'),
+        backgroundColor: _matchGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
     }
   }
 
@@ -154,239 +124,176 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ── Helpers de datos ───────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   String get _nombreCompleto {
-    final nombre = _userData?['nombre'] ?? '';
-    final apellido = _userData?['apellido'] ?? '';
-    return '$nombre $apellido'.trim().isEmpty ? 'Sin nombre' : '$nombre $apellido'.trim();
+    final n = _userData?['nombre'] ?? '';
+    final a = _userData?['apellido'] ?? '';
+    return '$n $a'.trim().isEmpty ? 'Sin nombre' : '$n $a'.trim();
   }
-
   String get _carrera => _userData?['carrera'] ?? 'Sin carrera';
-
-  // ── 5. Campos opcionales con valor por defecto ─────────────────────────────
-  String get _bio =>
-      (_userData?['biografia'] as String?)?.trim().isEmpty ?? true
-          ? 'Sin biografía aún'
-          : _userData!['biografia'];
-
+  String get _bio => (_userData?['biografia'] as String?)?.trim().isEmpty ?? true
+      ? 'Sin biografía aún'
+      : _userData!['biografia'];
   String? get _fotoPerfil => _userData?['foto_perfil'];
-
-  List<String> get _fotos =>
-      List<String>.from(_userData?['fotos'] ?? []);
-
-  List<String> get _intereses =>
-      List<String>.from(_userData?['intereses'] ?? []);
+  List<String> get _fotos => List<String>.from(_userData?['fotos'] ?? []);
+  List<String> get _intereses => List<String>.from(_userData?['intereses'] ?? []);
 
   // ──────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgDark,
+      backgroundColor: _bg,
       body: _isLoading
-          ? _buildLoadingState()
+          ? _buildLoading()
           : _errorMessage != null
-              ? _buildErrorState()
-              : _buildProfileContent(),
+              ? _buildError()
+              : _buildContent(),
     );
   }
 
-  // ── 4. Estado de carga ─────────────────────────────────────────────────────
-  Widget _buildLoadingState() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_bgMid, _bgDark],
-        ),
+  Widget _buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation(_pinkStart),
       ),
-      child: const Center(
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(_greenGlow),
-                strokeWidth: 3,
-              ),
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Cargando perfil...',
-              style: TextStyle(
-                color: Color(0xFF8FC88F),
-                fontSize: 14,
-                letterSpacing: 0.5,
-              ),
-            ),
+            const Icon(Icons.error_outline_rounded, color: _pinkStart, size: 56),
+            const SizedBox(height: 16),
+            Text(_errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: _textSecondary, fontSize: 15)),
+            const SizedBox(height: 24),
+            _gradientButton('Reintentar', _loadUserProfile),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildErrorState() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_bgMid, _bgDark],
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent, size: 56),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFB0CCB0), fontSize: 15),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _loadUserProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _greenAccent,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30)),
+  Widget _buildContent() {
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadUserProfile,
+          color: _pinkStart,
+          backgroundColor: _surface,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    _buildBioCard(),
+                    const SizedBox(height: 12),
+                    if (_intereses.isNotEmpty) _buildIntereses(),
+                    const SizedBox(height: 12),
+                    _buildTabBar(),
+                    _buildTabContent(),
+                    const SizedBox(height: 32),
+                  ],
                 ),
-                child: const Text('Reintentar',
-                    style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // ── 2. Contenido principal ─────────────────────────────────────────────────
-  Widget _buildProfileContent() {
-    return Stack(
-      children: [
-        
-        // Fondo con gradiente
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0.0, 0.45, 1.0],
-              colors: [Color(0xFF0F3010), Color(0xFF0D250D), _bgDark],
-            ),
-          ),
-        ),
-        // Contenido scrolleable
-        RefreshIndicator(
-        onRefresh: _loadUserProfile, // Reutiliza tu función existente
-        color: _greenGlow,
-        backgroundColor: _bgMid,
-        child:
-        CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            _buildSliverAppBar(),
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  _buildBioCard(),
-                  const SizedBox(height: 12),
-                  if (_intereses.isNotEmpty) _buildInteresesRow(),
-                  const SizedBox(height: 8),
-                  _buildTabBar(),
-                  _buildTabContent(),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-          ],
-        ),
-        ),
-        // Overlay de logout cargando
         if (_isLoggingOut)
           Container(
             color: Colors.black54,
             child: const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(_greenGlow),
-              ),
+                  valueColor: AlwaysStoppedAnimation(_pinkStart)),
             ),
           ),
       ],
     );
   }
 
-  // ── App bar con foto y nombre ──────────────────────────────────────────────
   SliverAppBar _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 280,
+      expandedHeight: 300,
       pinned: true,
-      backgroundColor: _bgDark,
+      backgroundColor: _bg,
       elevation: 0,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.edit_rounded, color: Colors.white70),
-          onPressed: _navigateToEditProfile, // Llamamos a nuestra función
-        ),
-        // ── 6. Botón de cerrar sesión ──────────────────────────────────────
-        IconButton(
-          icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-          tooltip: 'Cerrar sesión',
-          onPressed: _isLoggingOut ? null : _handleLogout,
-        ),
+        _appBarIcon(Icons.edit_outlined, _navigateToEditProfile),
+        _appBarIcon(Icons.logout_rounded, _isLoggingOut ? null : _handleLogout),
         const SizedBox(width: 4),
       ],
       flexibleSpace: FlexibleSpaceBar(
         collapseMode: CollapseMode.pin,
-        background: _buildProfileHeader(),
+        background: _buildHeader(),
       ),
     );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _appBarIcon(IconData icon, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: Colors.white70, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF0F3010), Color(0xFF0D250D)],
+          colors: [
+            _pinkStart.withOpacity(0.15),
+            _bg,
+          ],
         ),
       ),
       child: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 24),
-            // Avatar con glow
+            const SizedBox(height: 32),
             _buildAvatar(),
             const SizedBox(height: 16),
-            // Nombre
             Text(
               _nombreCompleto,
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.3,
+                color: _textPrimary,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 6),
-            // Carrera
-            Text(
-              _carrera,
-              style: const TextStyle(
-                color: _greenGlow,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.2,
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [_pinkStart, _orangeEnd]),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _carrera,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -402,21 +309,20 @@ class _ProfileScreenState extends State<ProfileScreen>
       height: 110,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        // Glow verde como en el diseño
+        gradient: const LinearGradient(
+          colors: [_pinkStart, _orangeEnd],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: _greenGlow.withOpacity(0.6),
+            color: _pinkStart.withOpacity(0.5),
             blurRadius: 24,
-            spreadRadius: 4,
-          ),
-          BoxShadow(
-            color: _greenGlow.withOpacity(0.3),
-            blurRadius: 48,
-            spreadRadius: 8,
+            spreadRadius: 2,
           ),
         ],
-        border: Border.all(color: _greenGlow, width: 3),
       ),
+      padding: const EdgeInsets.all(3),
       child: ClipOval(
         child: _fotoPerfil != null && _fotoPerfil!.isNotEmpty
             ? Image.network(
@@ -425,11 +331,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 loadingBuilder: (_, child, progress) => progress == null
                     ? child
                     : Container(
-                        color: _cardBg,
+                        color: _card,
                         child: const Center(
                           child: CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(_greenGlow),
+                            valueColor: AlwaysStoppedAnimation(_pinkStart),
                             strokeWidth: 2,
                           ),
                         ),
@@ -443,37 +348,44 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _defaultAvatar() {
     return Container(
-      color: _cardBg,
-      child: const Icon(
-        Icons.person_rounded,
-        color: _greenGlow,
-        size: 56,
-      ),
+      color: _card,
+      child: const Icon(Icons.person_rounded, color: Color(0xFF444444), size: 52),
     );
   }
 
-  // ── Biografía ──────────────────────────────────────────────────────────────
   Widget _buildBioCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          color: _surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'BIOGRAFÍA',
-              style: TextStyle(
-                color: _greenGlow,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
+            ShaderMask(
+              shaderCallback: (b) => const LinearGradient(
+                colors: [_pinkStart, _orangeEnd],
+              ).createShader(b),
+              child: const Text(
+                'BIOGRAFÍA',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -481,8 +393,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               _bio,
               style: TextStyle(
                 color: _bio == 'Sin biografía aún'
-                    ? Colors.white38
-                    : const Color(0xFFD0E8D0),
+                    ? _textSecondary
+                    : const Color(0xFFDDDDDD),
                 fontSize: 14,
                 height: 1.6,
                 fontStyle: _bio == 'Sin biografía aún'
@@ -496,8 +408,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  // ── Intereses (chips) ──────────────────────────────────────────────────────
-  Widget _buildInteresesRow() {
+  Widget _buildIntereses() {
     return SizedBox(
       height: 36,
       child: ListView.separated(
@@ -506,50 +417,42 @@ class _ProfileScreenState extends State<ProfileScreen>
         itemCount: _intereses.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) => Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: _greenAccent.withOpacity(0.15),
+            color: _pinkStart.withOpacity(0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: _greenAccent.withOpacity(0.4), width: 1),
+            border: Border.all(color: _pinkStart.withOpacity(0.3)),
           ),
           child: Text(
             _intereses[i],
             style: const TextStyle(
-              color: _greenGlow,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+                color: _pinkStart, fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ),
       ),
     );
   }
 
-  // ── Tab bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: _tabBg,
-          borderRadius: BorderRadius.circular(12),
+          color: _surface,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
-            color: _cardBg,
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: _greenGlow.withOpacity(0.5), width: 1),
+            gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+            borderRadius: BorderRadius.circular(12),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
-          labelColor: _greenGlow,
-          unselectedLabelColor: Colors.white38,
+          labelColor: Colors.white,
+          unselectedLabelColor: _textSecondary,
           labelStyle: const TextStyle(
-              fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.5),
+              fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
           tabs: const [
             Tab(
               child: Row(
@@ -580,28 +483,24 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildTabContent() {
     return AnimatedBuilder(
       animation: _tabController,
-      builder: (_, __) {
-        if (_tabController.index == 0) {
-          return _buildFotosGrid();
-        } else {
-          return _buildReelsGrid();
-        }
-      },
+      builder: (_, __) => _tabController.index == 0
+          ? _buildFotosGrid()
+          : _buildEmptyTab(
+              icon: Icons.videocam_outlined,
+              message: 'Sin reels aún',
+              sub: 'Comparte momentos en video con la comunidad',
+            ),
     );
   }
 
-  // ── Grid de fotos ──────────────────────────────────────────────────────────
   Widget _buildFotosGrid() {
-    final fotos = _fotos;
-
-    if (fotos.isEmpty) {
+    if (_fotos.isEmpty) {
       return _buildEmptyTab(
         icon: Icons.photo_library_outlined,
         message: 'Sin fotos aún',
-        sub: 'Agrega fotos a tu perfil para que otros puedan conocerte',
+        sub: 'Agrega fotos para que te conozcan mejor',
       );
     }
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: GridView.builder(
@@ -612,8 +511,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           crossAxisSpacing: 6,
           mainAxisSpacing: 6,
         ),
-        itemCount: fotos.length,
-        itemBuilder: (_, i) => _buildFotoItem(fotos[i]),
+        itemCount: _fotos.length,
+        itemBuilder: (_, i) => _buildFotoItem(_fotos[i]),
       ),
     );
   }
@@ -621,44 +520,23 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildFotoItem(String url) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: _greenGlow.withOpacity(0.25), width: 1),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8),
+        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(12),
         child: Image.network(
           url,
           fit: BoxFit.cover,
-          loadingBuilder: (_, child, progress) => progress == null
-              ? child
-              : Container(
-                  color: _cardBg,
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(_greenGlow),
-                      strokeWidth: 2,
-                    ),
-                  ),
-                ),
           errorBuilder: (_, __, ___) => Container(
-            color: _cardBg,
+            color: _card,
             child: const Icon(Icons.broken_image_outlined,
-                color: Colors.white24, size: 28),
+                color: Color(0xFF444444), size: 28),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildReelsGrid() {
-    // Los reels se manejarían igual que fotos pero con ícono de play
-    // Por ahora mostramos estado vacío
-    return _buildEmptyTab(
-      icon: Icons.videocam_outlined,
-      message: 'Sin reels aún',
-      sub: 'Comparte momentos en video con la comunidad',
     );
   }
 
@@ -668,30 +546,46 @@ class _ProfileScreenState extends State<ProfileScreen>
     required String sub,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
+      padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 32),
       child: Column(
         children: [
-          Icon(icon, color: Colors.white12, size: 56),
+          Icon(icon, color: const Color(0xFF333333), size: 52),
           const SizedBox(height: 12),
-          Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text(message,
+              style: const TextStyle(
+                  color: Color(0xFF555555),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          Text(
-            sub,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white24,
-              fontSize: 12,
-              height: 1.5,
-            ),
-          ),
+          Text(sub,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Color(0xFF3A3A3A), fontSize: 12, height: 1.5)),
         ],
+      ),
+    );
+  }
+
+  Widget _gradientButton(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+                color: _pinkStart.withOpacity(0.3),
+                blurRadius: 14,
+                offset: const Offset(0, 5))
+          ],
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 15)),
       ),
     );
   }

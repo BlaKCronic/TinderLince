@@ -24,18 +24,25 @@ class _RegisterScreenState extends State<RegisterScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
+  // ── Paleta ────────────────────────────────────────────────────────────────
+  static const _bg = Color(0xFF121212);
+  static const _inputFill = Color(0xFF2A2A2A);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
+
   @override
   void initState() {
     super.initState();
     _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+        vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeAnim =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+            begin: const Offset(0, 0.12), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _animController, curve: Curves.easeOutCubic));
     _animController.forward();
   }
 
@@ -48,44 +55,26 @@ class _RegisterScreenState extends State<RegisterScreen>
     super.dispose();
   }
 
-  // Splits "Nombre Apellido" into nombre and apellido for Firestore
-  Map<String, String> _splitNombreCompleto(String fullName) {
+  Map<String, String> _splitNombre(String fullName) {
     final parts = fullName.trim().split(RegExp(r'\s+'));
-    if (parts.length == 1) {
-      return {'nombre': parts[0], 'apellido': ''};
-    }
-    final nombre = parts.first;
-    final apellido = parts.sublist(1).join(' ');
-    return {'nombre': nombre, 'apellido': apellido};
+    if (parts.length == 1) return {'nombre': parts[0], 'apellido': ''};
+    return {'nombre': parts.first, 'apellido': parts.sublist(1).join(' ')};
   }
 
   Future<void> _handleRegister() async {
     if (!_acceptTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Debes aceptar los Términos y Condiciones'),
-          backgroundColor: Colors.black87,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      _showSnack('Acepta los Términos y Condiciones para continuar');
       return;
     }
-
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-    final nombreData = _splitNombreCompleto(_nombreController.text);
-
+    final nombreData = _splitNombre(_nombreController.text);
     try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
       final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
-
+          .createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
       final user = credential.user;
       if (user != null) {
         await FirebaseFirestore.instance
@@ -94,7 +83,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             .set({
           'nombre': nombreData['nombre'],
           'apellido': nombreData['apellido'],
-          'email_institucional': email,
+          'email_institucional': _emailController.text.trim(),
           'fecha_registro': FieldValue.serverTimestamp(),
           'ultima_conexion': FieldValue.serverTimestamp(),
           'activo': true,
@@ -107,7 +96,6 @@ class _RegisterScreenState extends State<RegisterScreen>
           'foto_perfil': '',
         });
       }
-
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder(
@@ -120,193 +108,177 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
     } on FirebaseAuthException catch (e) {
       final message = switch (e.code) {
-        'email-already-in-use' =>
-            'Este correo ya está registrado. Intenta iniciar sesión.',
-        'weak-password' => 'La contraseña es muy débil. Usa al menos 8 caracteres.',
+        'email-already-in-use' => 'Este correo ya está registrado.',
+        'weak-password' => 'Contraseña muy débil (mín. 8 chars).',
         'invalid-email' => 'Correo inválido.',
-        _ => 'Error al crear la cuenta. Intenta de nuevo.',
+        _ => 'Error al crear la cuenta.',
       };
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-      }
+      if (mounted) _showSnack(message);
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('Error al crear la cuenta. Verifica tu conexión e inténtalo de nuevo.'),
-          ),
-        );
-      }
+      if (mounted) _showSnack('Error de conexión. Intenta de nuevo.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: _pinkStart,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF7DC63F),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF8AD440),
-              Color(0xFF6DB832),
-            ],
-          ),
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
         ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: SlideTransition(
-              position: _slideAnim,
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
+      ),
+      body: FadeTransition(
+        opacity: _fadeAnim,
+        child: SlideTransition(
+          position: _slideAnim,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  // ── Header ──────────────────────────────────────────────
+                  ShaderMask(
+                    shaderCallback: (b) => const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd],
+                    ).createShader(b),
+                    child: const Text(
+                      'Crear cuenta',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Únete y empieza a conectar',
+                    style: TextStyle(color: _textSecondary, fontSize: 14),
+                  ),
+                  const SizedBox(height: 36),
+                  // ── Nombre ──────────────────────────────────────────────
+                  _fieldLabel('Nombre completo'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    controller: _nombreController,
+                    hint: 'Juan Pérez',
+                    icon: Icons.person_outline_rounded,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Campo requerido';
+                      if (v.trim().split(' ').length < 2)
+                        return 'Ingresa nombre y apellido';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  _fieldLabel('Correo electrónico'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    controller: _emailController,
+                    hint: 'tu@correo.com',
+                    icon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Campo requerido';
+                      final re = RegExp(
+                          r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                      if (!re.hasMatch(v)) return 'Correo inválido';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  _fieldLabel('Contraseña'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    controller: _passwordController,
+                    hint: '••••••••',
+                    icon: Icons.lock_outline_rounded,
+                    obscureText: _obscurePassword,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: _textSecondary,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Campo requerido';
+                      if (v.length < 8) return 'Mínimo 8 caracteres';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 28),
+                  // ── Términos ─────────────────────────────────────────────
+                  _buildTermsRow(),
+                  const SizedBox(height: 28),
+                  // ── Botón ────────────────────────────────────────────────
+                  _buildGradientButton(),
+                  const SizedBox(height: 32),
+                  // ── Login link ───────────────────────────────────────────
+                  Center(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(height: 32),
-                        // Header
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: const TextSpan(
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 34,
-                              fontWeight: FontWeight.w900,
-                              height: 1.15,
-                            ),
-                            children: [
-                              TextSpan(text: 'Únete a\n'),
-                              TextSpan(text: 'Lince'),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        // Subtitle
-                        const Text(
-                          'Crear Cuenta',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Nombre Completo
-                        _buildTextField(
-                          controller: _nombreController,
-                          hint: 'Nombre Completo',
-                          icon: Icons.person_outline_rounded,
-                          textCapitalization: TextCapitalization.words,
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) {
-                              return 'Ingresa tu nombre completo';
-                            }
-                            if (v.trim().split(' ').length < 2) {
-                              return 'Ingresa nombre y apellido';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        // Correo Electrónico
-                        _buildTextField(
-                          controller: _emailController,
-                          hint: 'Correo Electrónico',
-                          icon: Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'Ingresa tu correo';
-                            }
-                            final emailRegex = RegExp(
-                                r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-                            if (!emailRegex.hasMatch(v)) {
-                              return 'Correo inválido';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        // Contraseña
-                        _buildTextField(
-                          controller: _passwordController,
-                          hint: 'Crea tu Contraseña',
-                          icon: Icons.lock_outline_rounded,
-                          obscureText: _obscurePassword,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: const Color(0xFF3E8A1C),
-                              size: 20,
-                            ),
-                            onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword),
-                          ),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'Crea una contraseña';
-                            }
-                            if (v.length < 8) {
-                              return 'Mínimo 8 caracteres';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 28),
-                        // Register button
-                        _buildRegisterButton(),
-                        const SizedBox(height: 20),
-                        // Terms & Conditions
-                        _buildTermsRow(),
-                        const SizedBox(height: 32),
-                        // Login link
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '¿Ya tienes cuenta? ',
+                        const Text('¿Ya tienes cuenta? ',
+                            style:
+                                TextStyle(color: _textSecondary, fontSize: 14)),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: ShaderMask(
+                            shaderCallback: (b) => const LinearGradient(
+                              colors: [_pinkStart, _orangeEnd],
+                            ).createShader(b),
+                            child: const Text(
+                              'Inicia sesión',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
+                                color: Colors.white,
                                 fontSize: 14,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            GestureDetector(
-                              onTap: () => Navigator.pop(context),
-                              child: const Text(
-                                'Inicia Sesión',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 32),
                       ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 40),
+                ],
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _fieldLabel(String label) {
+    return Text(label,
+        style: const TextStyle(
+            color: _textSecondary, fontSize: 13, fontWeight: FontWeight.w500));
   }
 
   Widget _buildTextField({
@@ -325,85 +297,32 @@ class _RegisterScreenState extends State<RegisterScreen>
       keyboardType: keyboardType,
       textCapitalization: textCapitalization,
       validator: validator,
-      style: const TextStyle(
-        color: Color(0xFF1A3A0A),
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-      ),
+      style: const TextStyle(color: _textPrimary, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(
-          color: const Color(0xFF1A3A0A).withOpacity(0.5),
-          fontSize: 15,
-        ),
-        prefixIcon: Icon(icon, color: const Color(0xFF3E8A1C), size: 20),
+        hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 15),
+        prefixIcon: Icon(icon, color: _textSecondary, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: const Color(0xFFF0F9E8),
+        fillColor: _inputFill,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF2E2E2E))),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide:
-              const BorderSide(color: Color(0xFF2D6E0E), width: 1.5),
-        ),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
-        ),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _pinkStart)),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: const BorderSide(color: Color(0xFFD32F2F), width: 1.5),
-        ),
-        errorStyle: const TextStyle(
-          color: Color(0xFF1A3A0A),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRegisterButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleRegister,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.black54,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : const Text(
-                'CREAR CUENTA',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                ),
-              ),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+        errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
       ),
     );
   }
@@ -411,45 +330,47 @@ class _RegisterScreenState extends State<RegisterScreen>
   Widget _buildTermsRow() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: Checkbox(
-            value: _acceptTerms,
-            onChanged: (v) => setState(() => _acceptTerms = v ?? false),
-            activeColor: Colors.black,
-            checkColor: Colors.white,
-            side: const BorderSide(color: Colors.white, width: 1.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
+        GestureDetector(
+          onTap: () => setState(() => _acceptTerms = !_acceptTerms),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              gradient: _acceptTerms
+                  ? const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight)
+                  : null,
+              color: _acceptTerms ? null : _inputFill,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                  color: _acceptTerms ? Colors.transparent : const Color(0xFF444444),
+                  width: 1.5),
             ),
+            child: _acceptTerms
+                ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                : null,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Flexible(
           child: RichText(
             text: TextSpan(
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: _textSecondary, fontSize: 13),
               children: [
-                const TextSpan(text: 'Al registrarte, aceptas nuestros '),
+                const TextSpan(text: 'Acepto los '),
                 WidgetSpan(
                   child: GestureDetector(
-                    onTap: () {
-                      // TODO: show terms
-                    },
+                    onTap: () {},
                     child: const Text(
                       'Términos y Condiciones',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: _pinkStart,
                         fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -459,6 +380,56 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGradientButton() {
+    return Container(
+      width: double.infinity,
+      height: 54,
+      decoration: BoxDecoration(
+        gradient: _isLoading
+            ? const LinearGradient(colors: [Color(0xFF555555), Color(0xFF555555)])
+            : const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [_pinkStart, _orangeEnd]),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: _isLoading
+            ? []
+            : [
+                BoxShadow(
+                  color: _pinkStart.withOpacity(0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                )
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: _isLoading ? null : _handleRegister,
+          borderRadius: BorderRadius.circular(16),
+          child: Center(
+            child: _isLoading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation(Colors.white)))
+                : const Text(
+                    'Crear cuenta',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5),
+                  ),
+          ),
+        ),
+      ),
     );
   }
 }
