@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'profile_screen.dart';
+import 'edit_profile_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -77,10 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
       final user = credential.user;
       if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('usuario')
-            .doc(user.uid)
-            .set({
+        final initialData = {
           'nombre': nombreData['nombre'],
           'apellido': nombreData['apellido'],
           'email_institucional': _emailController.text.trim(),
@@ -94,18 +91,33 @@ class _RegisterScreenState extends State<RegisterScreen>
           'carrera': '',
           'edad': '',
           'foto_perfil': '',
-        });
+        };
+        await FirebaseFirestore.instance
+            .collection('usuario')
+            .doc(user.uid)
+            .set(initialData);
+
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (_, a, b) => EditProfileScreen(
+              userData: {
+                'nombre': nombreData['nombre'],
+                'apellido': nombreData['apellido'],
+                'biografia': '',
+                'carrera': '',
+                'foto_perfil': '',
+                'intereses': <String>[],
+              },
+              isNewUser: true,
+            ),
+            transitionsBuilder: (_, anim, __, child) =>
+                FadeTransition(opacity: anim, child: child),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+          (route) => false,
+        );
       }
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        PageRouteBuilder(
-          pageBuilder: (_, a, b) => const ProfileScreen(),
-          transitionsBuilder: (_, anim, __, child) =>
-              FadeTransition(opacity: anim, child: child),
-          transitionDuration: const Duration(milliseconds: 400),
-        ),
-        (route) => false,
-      );
     } on FirebaseAuthException catch (e) {
       final message = switch (e.code) {
         'email-already-in-use' => 'Este correo ya está registrado.',
@@ -155,7 +167,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
-                  // ── Header ──────────────────────────────────────────────
                   ShaderMask(
                     shaderCallback: (b) => const LinearGradient(
                       colors: [_pinkStart, _orangeEnd],
@@ -175,7 +186,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                     style: TextStyle(color: _textSecondary, fontSize: 14),
                   ),
                   const SizedBox(height: 36),
-                  // ── Nombre ──────────────────────────────────────────────
                   _fieldLabel('Nombre completo'),
                   const SizedBox(height: 8),
                   _buildTextField(
@@ -232,13 +242,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                     },
                   ),
                   const SizedBox(height: 28),
-                  // ── Términos ─────────────────────────────────────────────
                   _buildTermsRow(),
                   const SizedBox(height: 28),
-                  // ── Botón ────────────────────────────────────────────────
                   _buildGradientButton(),
                   const SizedBox(height: 32),
-                  // ── Login link ───────────────────────────────────────────
                   Center(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
