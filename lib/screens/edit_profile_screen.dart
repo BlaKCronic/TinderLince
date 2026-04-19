@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
 import 'profile_screen.dart';
 
@@ -119,33 +118,51 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
+    
     setState(() => _isSaving = true);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
     try {
       String? finalUrl = _currentImageUrl;
+
+      // 1. Subida a Cloudinary si hay una imagen local nueva
       if (_imageFile != null) {
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('perfiles/${user.uid}.jpg');
-        await ref.putFile(_imageFile!);
-        finalUrl = await ref.getDownloadURL();
+        // REEMPLAZA ESTOS VALORES CON LOS TUYOS
+        final cloudinary = CloudinaryPublic(
+          'dl8rz3aqk',      // Tu Cloud Name de la consola
+          'perfiles_preset', // El preset que creaste como "Unsigned"
+          cache: false,
+        );
+
+        CloudinaryResponse response = await cloudinary.uploadFile(
+          CloudinaryFile.fromFile(
+            _imageFile!.path, 
+            resourceType: CloudinaryResourceType.Image,
+          ),
+        );
+
+        finalUrl = response.secureUrl; // La URL HTTPS de Cloudinary
       }
+
+      // 2. Actualización en Firestore con la nueva URL y los intereses
       await FirebaseFirestore.instance
           .collection('usuario')
           .doc(user.uid)
           .update({
         'nombre': _nombreController.text.trim(),
         'apellido': _apellidoController.text.trim(),
-        'bio': _bioController.text.trim(), // SQA: Verifica si es 'bio' o 'biografia' en tu DB
+        'biografia': _bioController.text.trim(), // Ajustado a 'biografia' según tu initState
         'carrera': _carreraController.text.trim(),
         'foto_perfil': finalUrl,
         'intereses': _interesesSeleccionados.toList(),
         'ultima_actualizacion': FieldValue.serverTimestamp(),
       });
+
       if (!mounted) return;
+
+      // 3. Redirección lógica
       if (widget.isNewUser) {
-        // Nuevo usuario → ir al perfil principal
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (_, a, b) => const ProfileScreen(),
@@ -158,14 +175,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       } else {
         Navigator.pop(context, true);
       }
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
+          content: Text('Error al guardar: $e'),
           backgroundColor: _pinkStart,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ));
       }
     } finally {
