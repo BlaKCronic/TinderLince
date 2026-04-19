@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -62,27 +62,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       // Subida a Storage si hay imagen nueva 
       if (_imageFile != null) {
-        final ref = FirebaseStorage.instance.ref().child('perfiles/${user.uid}.jpg');
-        await ref.putFile(_imageFile!);
-        finalImageUrl = await ref.getDownloadURL();
+        final cloudinary = CloudinaryPublic(
+          'dl8rz3aqk',      // Cloud Name de la consola
+          'perfiles_preset',    // Preset Unsigned
+          cache: false,
+        );
+
+        CloudinaryResponse response = await cloudinary.uploadFile(
+          CloudinaryFile.fromFile(_imageFile!.path, 
+          resourceType: CloudinaryResourceType.Image),
+        );
+
+        finalImageUrl = response.secureUrl; // Obtenemos la URL de Cloudinary
       }
 
       // Actualización en Firestore 
       await FirebaseFirestore.instance.collection('usuario').doc(user.uid).update({
         'nombre': _nombreController.text.trim(),
         'apellido': _apellidoController.text.trim(),
-        'biografia': _bioController.text.trim(),
+        'bio': _bioController.text.trim(), // SQA: Verifica si es 'bio' o 'biografia' en tu DB
         'carrera': _carreraController.text.trim(),
         'foto_perfil': finalImageUrl,
         'ultima_actualizacion': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) Navigator.pop(context, true); // Retornar éxito
+      if (mounted) Navigator.pop(context, true); 
     } catch (e) {
-      // Mensaje de error 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error de conexión: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.redAccent),
         );
       }
     } finally {
