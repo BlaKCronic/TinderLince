@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
-import 'screens/profile_screen.dart';
+import 'screens/main_nav_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,7 +66,7 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snapshot.hasData) {
-          return const ProfileScreen();
+          return const MainNavScreen();   // ← ahora apunta a la nav principal
         }
         return const LoginScreen();
       },
