@@ -15,6 +15,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   Map<String, dynamic>? _userData;
+  // Mapa de docId → nombre del interés (para mostrar nombres legibles)
+  Map<String, String> _catalogoIntereses = {};
   bool _isLoading = true;
   bool _isLoggingOut = false;
   String? _errorMessage;
@@ -28,6 +30,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   static const _matchGreen = Color(0xFF4CAF50);
   static const _textPrimary = Colors.white;
   static const _textSecondary = Color(0xFFAAAAAA);
+
+  static const _generoLabels = {
+    'hombre': '👨 Hombre',
+    'mujer': '👩 Mujer',
+    'no_binario': '🧑 No binario',
+    'prefiero_no_decir': '🤐 No especificado',
+  };
 
   @override
   void initState() {
@@ -49,20 +58,52 @@ class _ProfileScreenState extends State<ProfileScreen>
     });
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) { _redirectToLogin(); return; }
-      final doc = await FirebaseFirestore.instance
-          .collection('usuario')
-          .doc(user.uid)
-          .get();
+      if (user == null) {
+        _redirectToLogin();
+        return;
+      }
+
+      // Carga en paralelo: perfil del usuario + catálogo de intereses
+      final results = await Future.wait([
+        FirebaseFirestore.instance
+            .collection('usuario')
+            .doc(user.uid)
+            .get(),
+        FirebaseFirestore.instance
+            .collection('intereses')
+            .get(),
+      ]);
+
       if (!mounted) return;
-      if (doc.exists) {
-        setState(() { _userData = doc.data(); _isLoading = false; });
+
+      final userDoc = results[0] as DocumentSnapshot;
+      final interesesSnap = results[1] as QuerySnapshot;
+
+      // Construimos el mapa id → nombre
+      final mapa = <String, String>{};
+      for (final doc in interesesSnap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        mapa[doc.id] = data['nombre'] as String? ?? doc.id;
+      }
+
+      if (userDoc.exists) {
+        setState(() {
+          _userData = userDoc.data() as Map<String, dynamic>;
+          _catalogoIntereses = mapa;
+          _isLoading = false;
+        });
       } else {
-        setState(() { _isLoading = false; _errorMessage = 'Perfil no encontrado.'; });
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Perfil no encontrado.';
+        });
       }
     } catch (_) {
       if (!mounted) return;
-      setState(() { _isLoading = false; _errorMessage = 'Error al cargar el perfil.'; });
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error al cargar el perfil.';
+      });
     }
   }
 
@@ -71,19 +112,23 @@ class _ProfileScreenState extends State<ProfileScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Cerrar sesión',
-            style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w700)),
+            style: TextStyle(
+                color: _textPrimary, fontWeight: FontWeight.w700)),
         content: const Text('¿Estás seguro?',
             style: TextStyle(color: _textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar', style: TextStyle(color: _textSecondary)),
+            child: const Text('Cancelar',
+                style: TextStyle(color: _textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salir', style: TextStyle(color: _pinkStart)),
+            child:
+                const Text('Salir', style: TextStyle(color: _pinkStart)),
           ),
         ],
       ),
@@ -107,7 +152,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         content: const Text('¡Perfil actualizado!'),
         backgroundColor: _matchGreen,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ));
     }
   }
@@ -130,13 +176,39 @@ class _ProfileScreenState extends State<ProfileScreen>
     final a = _userData?['apellido'] ?? '';
     return '$n $a'.trim().isEmpty ? 'Sin nombre' : '$n $a'.trim();
   }
-  String get _carrera => _userData?['carrera'] ?? 'Sin carrera';
-  String get _bio => (_userData?['biografia'] as String?)?.trim().isEmpty ?? true
-      ? 'Sin biografía aún'
-      : _userData!['biografia'];
+
+  String get _carrera => _userData?['carrera'] ?? '';
+
+  String get _bio {
+    final b = (_userData?['biografia'] as String?)?.trim() ?? '';
+    return b.isEmpty ? 'Sin biografía aún' : b;
+  }
+
   String? get _fotoPerfil => _userData?['foto_perfil'];
-  List<String> get _fotos => List<String>.from(_userData?['fotos'] ?? []);
-  List<String> get _intereses => List<String>.from(_userData?['intereses'] ?? []);
+  List<String> get _fotos =>
+      List<String>.from(_userData?['fotos'] ?? []);
+
+  // IDs de intereses guardados → nombres del catálogo
+  List<String> get _interesesNombres {
+    final ids = List<String>.from(_userData?['intereses'] ?? []);
+    return ids
+        .map((id) => _catalogoIntereses[id] ?? id)
+        .toList();
+  }
+
+  String get _edadDisplay {
+    final e = _userData?['edad'];
+    if (e == null) return '';
+    final str = e.toString().trim();
+    return str.isEmpty ? '' : '$str años';
+  }
+
+  String get _generoDisplay {
+    final g = _userData?['genero'];
+    if (g == null) return '';
+    final str = g is String ? g : (g is List && g.isNotEmpty ? g.first.toString() : '');
+    return _generoLabels[str] ?? '';
+  }
 
   // ──────────────────────────────────────────────────────────────────────────
   @override
@@ -166,11 +238,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: _pinkStart, size: 56),
+            const Icon(Icons.error_outline_rounded,
+                color: _pinkStart, size: 56),
             const SizedBox(height: 16),
             Text(_errorMessage!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: _textSecondary, fontSize: 15)),
+                style:
+                    const TextStyle(color: _textSecondary, fontSize: 15)),
             const SizedBox(height: 24),
             _gradientButton('Reintentar', _loadUserProfile),
           ],
@@ -193,10 +267,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    // ── Chips de info rápida (edad / género) ──────────────
+                    _buildInfoChips(),
+                    const SizedBox(height: 12),
                     _buildBioCard(),
                     const SizedBox(height: 12),
-                    if (_intereses.isNotEmpty) _buildIntereses(),
+                    if (_interesesNombres.isNotEmpty) _buildIntereses(),
                     const SizedBox(height: 12),
                     _buildTabBar(),
                     _buildTabContent(),
@@ -227,7 +304,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       elevation: 0,
       actions: [
         _appBarIcon(Icons.edit_outlined, _navigateToEditProfile),
-        _appBarIcon(Icons.logout_rounded, _isLoggingOut ? null : _handleLogout),
+        _appBarIcon(
+            Icons.logout_rounded, _isLoggingOut ? null : _handleLogout),
         const SizedBox(width: 4),
       ],
       flexibleSpace: FlexibleSpaceBar(
@@ -258,10 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            _pinkStart.withOpacity(0.15),
-            _bg,
-          ],
+          colors: [_pinkStart.withOpacity(0.15), _bg],
         ),
       ),
       child: SafeArea(
@@ -280,22 +355,24 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [_pinkStart, _orangeEnd]),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _carrera,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            if (_carrera.isNotEmpty)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _carrera,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -349,7 +426,58 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _defaultAvatar() {
     return Container(
       color: _card,
-      child: const Icon(Icons.person_rounded, color: Color(0xFF444444), size: 52),
+      child: const Icon(Icons.person_rounded,
+          color: Color(0xFF444444), size: 52),
+    );
+  }
+
+  // ── Chips de edad y género ─────────────────────────────────────────────────
+  Widget _buildInfoChips() {
+    final chips = <Widget>[];
+
+    if (_edadDisplay.isNotEmpty) {
+      chips.add(_infoChip(Icons.cake_outlined, _edadDisplay));
+    }
+    if (_generoDisplay.isNotEmpty) {
+      chips.add(_infoChip(null, _generoDisplay));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: chips
+            .expand((c) => [c, const SizedBox(width: 10)])
+            .toList()
+          ..removeLast(),
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData? icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: _pinkStart, size: 14),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+                color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 
@@ -414,19 +542,22 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _intereses.length,
+        itemCount: _interesesNombres.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: _pinkStart.withOpacity(0.12),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _pinkStart.withOpacity(0.3)),
           ),
           child: Text(
-            _intereses[i],
+            _interesesNombres[i],
             style: const TextStyle(
-                color: _pinkStart, fontSize: 12, fontWeight: FontWeight.w600),
+                color: _pinkStart,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -444,7 +575,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
-            gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+            gradient:
+                const LinearGradient(colors: [_pinkStart, _orangeEnd]),
             borderRadius: BorderRadius.circular(12),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
@@ -452,7 +584,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           labelColor: Colors.white,
           unselectedLabelColor: _textSecondary,
           labelStyle: const TextStyle(
-              fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3),
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              letterSpacing: 0.3),
           tabs: const [
             Tab(
               child: Row(
@@ -522,7 +656,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.3), blurRadius: 8),
         ],
       ),
       child: ClipRRect(
@@ -540,11 +675,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildEmptyTab({
-    required IconData icon,
-    required String message,
-    required String sub,
-  }) {
+  Widget _buildEmptyTab(
+      {required IconData icon,
+      required String message,
+      required String sub}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 32),
       child: Column(
@@ -570,9 +704,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+          gradient:
+              const LinearGradient(colors: [_pinkStart, _orangeEnd]),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(

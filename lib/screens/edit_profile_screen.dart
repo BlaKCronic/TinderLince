@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,8 +10,6 @@ import 'profile_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
-  /// Si es true, el usuario acaba de registrarse y se muestra un flujo de
-  /// bienvenida: no hay botón de cerrar y al guardar va al ProfileScreen.
   final bool isNewUser;
 
   const EditProfileScreen({
@@ -23,7 +22,6 @@ class EditProfileScreen extends StatefulWidget {
   State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-// Modelo simple para un interés del catálogo
 class _Interes {
   final String id;
   final String nombre;
@@ -38,15 +36,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _apellidoController;
   late TextEditingController _bioController;
   late TextEditingController _carreraController;
+  late TextEditingController _edadController;
 
   File? _imageFile;
   bool _isSaving = false;
   bool _loadingIntereses = true;
   String? _currentImageUrl;
+  String? _generoSeleccionado;
 
-  // Intereses del catálogo (de Firestore)
   List<_Interes> _catalogoIntereses = [];
-  // IDs de intereses seleccionados por el usuario
   Set<String> _interesesSeleccionados = {};
 
   // ── Paleta ─────────────────────────────────────────────────────────────────
@@ -57,6 +55,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   static const _orangeEnd = Color(0xFFFF8A00);
   static const _textPrimary = Colors.white;
   static const _textSecondary = Color(0xFFAAAAAA);
+
+  static const _generos = [
+    {'valor': 'hombre', 'label': 'Hombre', 'emoji': '👨'},
+    {'valor': 'mujer', 'label': 'Mujer', 'emoji': '👩'},
+    {'valor': 'no_binario', 'label': 'No binario', 'emoji': '🧑'},
+    {'valor': 'prefiero_no_decir', 'label': 'No especificar', 'emoji': '🤐'},
+  ];
 
   @override
   void initState() {
@@ -69,9 +74,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         TextEditingController(text: widget.userData['biografia'] ?? '');
     _carreraController =
         TextEditingController(text: widget.userData['carrera'] ?? '');
+    _edadController =
+        TextEditingController(text: widget.userData['edad']?.toString() ?? '');
     _currentImageUrl = widget.userData['foto_perfil'];
 
-    // Cargar intereses actuales del usuario
+    // Género — puede ser String o List (legacy)
+    final generoRaw = widget.userData['genero'];
+    if (generoRaw is String && generoRaw.isNotEmpty) {
+      _generoSeleccionado = generoRaw;
+    } else if (generoRaw is List && generoRaw.isNotEmpty) {
+      _generoSeleccionado = generoRaw.first.toString();
+    }
+
     final interesesActuales =
         List<String>.from(widget.userData['intereses'] ?? []);
     _interesesSeleccionados = interesesActuales.toSet();
@@ -85,28 +99,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _apellidoController.dispose();
     _bioController.dispose();
     _carreraController.dispose();
+    _edadController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchCatalogoIntereses() async {
     try {
+      // Sin orderBy para evitar requerir índice compuesto en Firestore
       final snap = await FirebaseFirestore.instance
           .collection('intereses')
-          .orderBy('categoria')
           .get();
-      setState(() {
-        _catalogoIntereses = snap.docs.map((doc) {
-          final data = doc.data();
-          return _Interes(
-            id: doc.id,
-            nombre: data['nombre'] as String? ?? doc.id,
-            categoria: data['categoria'] as String? ?? 'General',
-          );
-        }).toList();
-        _loadingIntereses = false;
+      final lista = snap.docs.map((doc) {
+        final data = doc.data();
+        return _Interes(
+          id: doc.id,
+          nombre: data['nombre'] as String? ?? doc.id,
+          categoria: data['categoria'] as String? ?? 'General',
+        );
+      }).toList();
+
+      // Ordenamos client-side por categoría y luego por nombre
+      lista.sort((a, b) {
+        final cat = a.categoria.compareTo(b.categoria);
+        return cat != 0 ? cat : a.nombre.compareTo(b.nombre);
       });
-    } catch (_) {
-      setState(() => _loadingIntereses = false);
+
+      if (mounted) {
+        setState(() {
+          _catalogoIntereses = lista;
+          _loadingIntereses = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingIntereses = false);
     }
   }
 
@@ -118,7 +143,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
-    
     setState(() => _isSaving = true);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -126,34 +150,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       String? finalUrl = _currentImageUrl;
 
-      // 1. Subida a Cloudinary si hay una imagen local nueva
       if (_imageFile != null) {
-        // REEMPLAZA ESTOS VALORES CON LOS TUYOS
         final cloudinary = CloudinaryPublic(
-          'dl8rz3aqk',      // Tu Cloud Name de la consola
-          'perfiles_preset', // El preset que creaste como "Unsigned"
+          'dl8rz3aqk',
+          'perfiles_preset',
           cache: false,
         );
-
         CloudinaryResponse response = await cloudinary.uploadFile(
           CloudinaryFile.fromFile(
-            _imageFile!.path, 
+            _imageFile!.path,
             resourceType: CloudinaryResourceType.Image,
           ),
         );
-
-        finalUrl = response.secureUrl; // La URL HTTPS de Cloudinary
+        finalUrl = response.secureUrl;
       }
 
-      // 2. Actualización en Firestore con la nueva URL y los intereses
+      final edadStr = _edadController.text.trim();
+      final edadInt = edadStr.isNotEmpty ? int.tryParse(edadStr) : null;
+
       await FirebaseFirestore.instance
           .collection('usuario')
           .doc(user.uid)
           .update({
         'nombre': _nombreController.text.trim(),
         'apellido': _apellidoController.text.trim(),
-        'biografia': _bioController.text.trim(), // Ajustado a 'biografia' según tu initState
+        'biografia': _bioController.text.trim(),
         'carrera': _carreraController.text.trim(),
+        'edad': edadInt ?? edadStr,
+        'genero': _generoSeleccionado ?? '',
         'foto_perfil': finalUrl,
         'intereses': _interesesSeleccionados.toList(),
         'ultima_actualizacion': FieldValue.serverTimestamp(),
@@ -161,7 +185,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (!mounted) return;
 
-      // 3. Redirección lógica
       if (widget.isNewUser) {
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
@@ -175,14 +198,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       } else {
         Navigator.pop(context, true);
       }
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error al guardar: $e'),
           backgroundColor: _pinkStart,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ));
       }
     } finally {
@@ -190,7 +213,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // ── Agrupa el catálogo por categoría ──────────────────────────────────────
   Map<String, List<_Interes>> get _interesesPorCategoria {
     final Map<String, List<_Interes>> mapa = {};
     for (final interes in _catalogoIntereses) {
@@ -220,6 +242,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Icons.person_outline_rounded),
                 _buildTextField(
                     'Carrera', _carreraController, Icons.school_outlined),
+                // ── Edad ──────────────────────────────────────────────────
+                _buildEdadField(),
+                // ── Género ────────────────────────────────────────────────
+                _buildGeneroSection(),
+                const SizedBox(height: 18),
                 _buildTextField(
                     'Biografía', _bioController, Icons.article_outlined,
                     maxLines: 3),
@@ -261,7 +288,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // ── Banner de bienvenida (solo nuevo usuario) ──────────────────────────────
+  // ── Banner de bienvenida ───────────────────────────────────────────────────
   Widget _buildWelcomeBanner() {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -328,8 +355,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: ClipOval(
               child: _imageFile != null
                   ? Image.file(_imageFile!, fit: BoxFit.cover)
-                  : (_currentImageUrl != null &&
-                          _currentImageUrl!.isNotEmpty
+                  : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty
                       ? Image.network(_currentImageUrl!, fit: BoxFit.cover)
                       : Container(
                           color: _inputFill,
@@ -347,13 +373,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd]),
+                  gradient:
+                      const LinearGradient(colors: [_pinkStart, _orangeEnd]),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8)
+                        color: Colors.black.withOpacity(0.3), blurRadius: 8)
                   ],
                 ),
                 child: const Icon(Icons.camera_alt_rounded,
@@ -366,7 +391,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // ── Campo de texto ─────────────────────────────────────────────────────────
+  // ── Campo de texto genérico ────────────────────────────────────────────────
   Widget _buildTextField(
     String label,
     TextEditingController controller,
@@ -420,12 +445,169 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // ── Campo edad ─────────────────────────────────────────────────────────────
+  Widget _buildEdadField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Edad',
+              style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3)),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _edadController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(2),
+            ],
+            style: const TextStyle(color: _textPrimary, fontSize: 15),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.cake_outlined,
+                  color: _textSecondary, size: 20),
+              hintText: 'Ej. 21',
+              hintStyle:
+                  const TextStyle(color: Color(0xFF555555), fontSize: 15),
+              filled: true,
+              fillColor: _inputFill,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF2E2E2E))),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+              errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _pinkStart)),
+              focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+              errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Campo obligatorio';
+              final age = int.tryParse(v);
+              if (age == null || age < 18 || age > 99) {
+                return 'Ingresa una edad válida (18-99)';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Selector de género ─────────────────────────────────────────────────────
+  Widget _buildGeneroSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            ShaderMask(
+              shaderCallback: (b) => const LinearGradient(
+                colors: [_pinkStart, _orangeEnd],
+              ).createShader(b),
+              child: const Text(
+                'GÉNERO',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                ),
+              ),
+            ),
+            if (_generoSeleccionado == null) ...[
+              const SizedBox(width: 8),
+              const Text('*',
+                  style: TextStyle(color: _pinkStart, fontSize: 14)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _generos.map((g) {
+            final seleccionado = _generoSeleccionado == g['valor'];
+            return GestureDetector(
+              onTap: () =>
+                  setState(() => _generoSeleccionado = g['valor'] as String),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: seleccionado
+                      ? const LinearGradient(
+                          colors: [_pinkStart, _orangeEnd])
+                      : null,
+                  color: seleccionado ? null : _inputFill,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: seleccionado
+                        ? Colors.transparent
+                        : const Color(0xFF3A3A3A),
+                  ),
+                  boxShadow: seleccionado
+                      ? [
+                          BoxShadow(
+                            color: _pinkStart.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          )
+                        ]
+                      : [],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(g['emoji']!,
+                        style: const TextStyle(fontSize: 16)),
+                    const SizedBox(width: 6),
+                    Text(
+                      g['label']!,
+                      style: TextStyle(
+                        color:
+                            seleccionado ? Colors.white : _textSecondary,
+                        fontSize: 13,
+                        fontWeight: seleccionado
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                    if (seleccionado) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.check_circle_rounded,
+                          color: Colors.white, size: 14),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   // ── Sección de intereses ───────────────────────────────────────────────────
   Widget _buildInteresesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Encabezado
         Row(
           children: [
             ShaderMask(
@@ -455,7 +637,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           style: TextStyle(color: _textSecondary, fontSize: 12),
         ),
         const SizedBox(height: 16),
-
         if (_loadingIntereses)
           const Center(
             child: Padding(
@@ -487,7 +668,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildCategoriaChips(String categoria, List<_Interes> intereses) {
-    // Icono por categoría
     final iconos = <String, IconData>{
       'Deportes': Icons.sports_soccer_rounded,
       'Entretenimiento': Icons.movie_outlined,
@@ -507,7 +687,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título de categoría
           Row(
             children: [
               Icon(icono, color: _pinkStart, size: 16),
@@ -523,7 +702,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // Chips
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -597,13 +775,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // ── Botón guardar (al final del scroll) ───────────────────────────────────
+  // ── Botón guardar ──────────────────────────────────────────────────────────
   Widget _buildSaveButton() {
     return Container(
       width: double.infinity,
       height: 54,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+        gradient:
+            const LinearGradient(colors: [_pinkStart, _orangeEnd]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
