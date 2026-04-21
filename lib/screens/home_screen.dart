@@ -25,6 +25,8 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoading = true;
   int _currentIndex = 0;
 
+  ProfileFilters _currentFilters = ProfileFilters();
+
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
 
@@ -57,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
     });
-    _loadProfiles();
+    _fetchProfiles();
   }
 
   @override
@@ -263,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           Row(
             children: [
-              _topBarIcon(Icons.tune_rounded, () {}),
+              _topBarIcon(Icons.tune_rounded, () {_showFilterModal();}),
               const SizedBox(width: 8),
               _topBarIcon(Icons.notifications_none_rounded, () {}),
             ],
@@ -787,4 +789,294 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+
+  void _showFilterModal() {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: _surface,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+    ),
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          return Container(
+            // Ajuste de altura basado en el contenido para que no se vea pequeño
+            padding: EdgeInsets.only(
+              left: 28, 
+              right: 28, 
+              top: 15, 
+              bottom: MediaQuery.of(context).padding.bottom + 20
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Tirador superior
+                Center(
+                  child: Container(
+                    width: 50, height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(10)
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                const Center(
+                  child: Text("AJUSTES DE BÚSQUEDA",
+                    style: TextStyle(color: _textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                ),
+                const SizedBox(height: 30),
+
+                // SECCIÓN: EDAD
+                _buildSectionHeader("Rango de Edad", "${_currentFilters.minEdad} - ${_currentFilters.maxEdad}"),
+                RangeSlider(
+                  values: RangeValues(_currentFilters.minEdad.toDouble(), _currentFilters.maxEdad.toDouble()),
+                  min: 18, max: 60,
+                  activeColor: _pinkStart,
+                  inactiveColor: Colors.white12,
+                  onChanged: (values) {
+                    setModalState(() {
+                      _currentFilters.minEdad = values.start.round();
+                      _currentFilters.maxEdad = values.end.round();
+                    });
+                  },
+                ),
+                const Divider(color: Colors.white10, height: 40),
+
+                // SECCIÓN: CARRERA
+                _buildSectionHeader(
+                  "Carrera", 
+                  _currentFilters.carreras.isEmpty 
+                      ? "Todas" 
+                      : _currentFilters.carreras.join(", ")
+                ),
+                const SizedBox(height: 12),
+                _buildCarrerasSelector(setModalState),
+
+      
+                const Divider(color: Colors.white10, height: 40),
+
+                // SECCIÓN: INTERESES
+                _buildSectionHeader("Intereses", "${_currentFilters.intereses.length} seleccionados"),
+                const SizedBox(height: 16),
+                _buildInteresesSelector(setModalState),
+
+                const SizedBox(height: 30),
+                Center(
+                  child: _buildApplyButton(),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+  Future<void> _fetchProfiles() async {
+    setState(() => _isLoading = true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. Traer todos los usuarios que no sean el actual
+      // Nota: Para filtros complejos, traemos la base y filtramos en local para evitar 
+      // errores de índices compuestos en Firestore.
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('usuario')
+          .where(FieldPath.documentId, isNotEqualTo: user.uid)
+          .get();
+
+      // 2. Transformar documentos a lista de mapas
+      List<Map<String, dynamic>> allUsers = querySnapshot.docs
+          .map((doc) => {...doc.data(), 'id': doc.id})
+          .toList();
+
+      // 3. Aplicar Filtros 
+      final filteredList = allUsers.where((u) {
+        // Filtro de Edad
+        final edad = u['edad'] is int ? u['edad'] : (int.tryParse(u['edad']?.toString() ?? '0') ?? 0);
+        bool cumpleEdad = edad >= _currentFilters.minEdad && edad <= _currentFilters.maxEdad;
+
+        // Filtro de Carrera
+        bool cumpleCarrera = _currentFilters.carreras == null || 
+                            u['carrera'] == _currentFilters.carreras;
+
+        // Filtro de Intereses (Si el filtro tiene intereses, el perfil debe tener al menos uno igual)
+        List<String> interesesUsuario = List<String>.from(u['intereses'] ?? []);
+        bool cumpleIntereses = _currentFilters.intereses.isEmpty || 
+                              interesesUsuario.any((i) => _currentFilters.intereses.contains(i));
+
+        return cumpleEdad && cumpleCarrera && cumpleIntereses;
+      }).toList();
+
+      setState(() {
+        _profiles = filteredList;
+        _currentIndex = 0; // Reiniciar al primer perfil tras filtrar
+        _isLoading = false;
+      });
+    } catch (e) {
+      print("Error cargando perfiles: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildApplyButton() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).pop(); // Cerrar modal
+        _fetchProfiles(); // Refrescar perfiles con los nuevos filtros
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _pinkStart.withOpacity(0.3),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: const Text(
+          'Aplicar Filtros',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, String value) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(title, style: const TextStyle(color: _textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+      Text(value, style: const TextStyle(color: _pinkStart, fontSize: 15, fontWeight: FontWeight.bold)),
+    ],
+  );
+}
+
+Widget _buildCarrerasSelector(StateSetter setModalState) {
+  final listaCarreras = [
+    'Sistemas', 'Industrial', 'Gestión', 'Mecatrónica', 'Electrónica'
+  ];
+
+  return Wrap(
+    spacing: 10,
+    runSpacing: 10,
+    children: listaCarreras.map((carrera) {
+      final isSelected = _currentFilters.carreras.contains(carrera);
+      
+      return GestureDetector(
+        onTap: () {
+          setModalState(() {
+            // Creamos una copia mutable de la lista actual
+            List<String> listaNueva = List.from(_currentFilters.carreras);
+            if (isSelected) {
+              listaNueva.remove(carrera);
+            } else {
+              listaNueva.add(carrera);
+            }
+            _currentFilters.carreras = listaNueva;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? _pinkStart.withOpacity(0.1) : Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? _pinkStart : Colors.white10,
+              width: 1.5,
+            ),
+            // EFECTO DE BRILLO (GLOW)
+            boxShadow: isSelected ? [
+              BoxShadow(
+                color: _pinkStart.withOpacity(0.4),
+                blurRadius: 10,
+                spreadRadius: 1,
+              )
+            ] : [],
+          ),
+          child: Text(
+            carrera,
+            style: TextStyle(
+              color: isSelected ? Colors.white : _textSecondary,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      );
+    }).toList(),
+  );
+}
+
+Widget _buildInteresesSelector(StateSetter setModalState) {
+  // Nota: Aquí usamos el catálogo que ya deberías tener cargado en la App
+  // Si no tienes uno, puedes usar una lista estática para pruebas:
+  final listaIntereses = ["Deportes", "Música", "Programación", "Cine", "Lectura", "Viajes", "Anime", "Videojuegos", "Gimnasio"];
+
+  return Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: listaIntereses.map((interes) {
+      final isSelected = _currentFilters.intereses.contains(interes);
+      return FilterChip(
+        label: Text(interes),
+        selected: isSelected,
+        selectedColor: _pinkStart.withOpacity(0.2),
+        checkmarkColor: _pinkStart,
+        labelStyle: TextStyle(
+          color: isSelected ? _pinkStart : _textSecondary,
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+        backgroundColor: Colors.white.withOpacity(0.05),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: isSelected ? _pinkStart : Colors.white10,
+          ),
+        ),
+        onSelected: (bool selected) {
+          setModalState(() {
+            
+            if (selected) {
+              _currentFilters.intereses = [..._currentFilters.intereses, interes];
+            } else {
+              _currentFilters.intereses = _currentFilters.intereses
+                  .where((i) => i != interes)
+                  .toList();
+            }
+          });
+        },
+      );
+    }).toList(),
+  );
+}
+}
+
+class ProfileFilters {
+  int minEdad;
+  int maxEdad;
+  List<String> carreras;
+  List<String> intereses;
+
+  ProfileFilters({
+    this.minEdad = 18,
+    this.maxEdad = 30,
+    this.carreras = const [],
+    this.intereses = const [],
+  });
 }
