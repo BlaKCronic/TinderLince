@@ -36,7 +36,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _isAnimatingOut = false;
   Offset _flyOutTarget = Offset.zero;
-  String? _lastAction; // 'like' | 'pass'
+  String? _lastAction;
+
+  // ── Match overlay ───────────────────────────────────────────────────────────
+  bool _showMatchOverlay = false;
+  Map<String, dynamic>? _matchedProfile;
 
   @override
   void initState() {
@@ -75,10 +79,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       final results = await Future.wait([
-        FirebaseFirestore.instance
-            .collection('usuario')
-            .limit(30)
-            .get(),
+        FirebaseFirestore.instance.collection('usuario').limit(30).get(),
         FirebaseFirestore.instance.collection('intereses').get(),
       ]);
 
@@ -115,13 +116,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onPanEnd(DragEndDetails details) {
     if (_isAnimatingOut) return;
-    final threshold = 90.0;
+    const threshold = 90.0;
     if (_dragOffset.dx > threshold) {
       _doSwipe(like: true);
     } else if (_dragOffset.dx < -threshold) {
       _doSwipe(like: false);
     } else {
-      // snap back
       _isDragging = false;
       _snapStartOffset = _dragOffset;
       _snapBackAnimation = Tween<Offset>(
@@ -138,13 +138,11 @@ class _HomeScreenState extends State<HomeScreen>
     _isAnimatingOut = true;
     _isDragging = false;
 
-    final screenWidth =
-        MediaQuery.of(context).size.width + 200;
+    final screenWidth = MediaQuery.of(context).size.width + 200;
     _flyOutTarget = Offset(like ? screenWidth : -screenWidth, _dragOffset.dy);
 
     setState(() => _lastAction = like ? 'like' : 'pass');
 
-    // Animate card flying out
     final startOffset = _dragOffset;
     const steps = 20;
     for (int i = 1; i <= steps; i++) {
@@ -158,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen>
     await Future.delayed(const Duration(milliseconds: 60));
 
     if (like) {
-      _saveLike();
+      await _saveLikeAndCheckMatch();
     }
 
     if (!mounted) return;
@@ -170,34 +168,73 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  Future<void> _saveLike() async {
-  final currentUser = FirebaseAuth.instance.currentUser;
-  if (currentUser == null || _currentIndex >= _profiles.length) return;
-  final profile = _profiles[_currentIndex];
+  // ── Like + detección de match ───────────────────────────────────────────────
+  Future<void> _saveLikeAndCheckMatch() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || _currentIndex >= _profiles.length) return;
+    final profile = _profiles[_currentIndex];
+    final String toUserId = profile['id'] as String;
+    final String fromUserId = currentUser.uid;
 
-  try {
-    // Documento con ID compuesto para evitar likes duplicados
-    final docId = '${currentUser.uid}_${profile['id']}';
-    await FirebaseFirestore.instance
-        .collection('likes')
-        .doc(docId)
-        .set({
-          'from': currentUser.uid,
-          'to': profile['id'] as String,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+    try {
+      // 1. Guardar el like
+      final docId = '${fromUserId}_$toUserId';
+      await FirebaseFirestore.instance.collection('likes').doc(docId).set({
+        'from': fromUserId,
+        'to': toUserId,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Comprobar si el otro ya nos dio like (like inverso)
+      final reverseDocId = '${toUserId}_$fromUserId';
+      final reverseDoc = await FirebaseFirestore.instance
+          .collection('likes')
+          .doc(reverseDocId)
+          .get();
+
+      if (reverseDoc.exists) {
+        // ¡Es un match! Guardarlo en Firestore y mostrarlo
+        await _saveMatch(fromUserId, toUserId);
+        if (mounted) {
+          _showMatch(profile);
+        }
+      }
     } catch (e) {
-    debugPrint('Error guardando like: $e');
+      debugPrint('Error en like/match: $e');
     }
   }
 
-  double get _rotationAngle =>
-      (_dragOffset.dx / 350) * 0.25;
+  Future<void> _saveMatch(String userA, String userB) async {
+    // ID ordenado para evitar duplicados (a_b == b_a)
+    final ids = [userA, userB]..sort();
+    final matchId = '${ids[0]}_${ids[1]}';
 
-  double get _swipeProgress =>
-      (_dragOffset.dx / 120).clamp(-1.0, 1.0);
+    await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
+      'users': [userA, userB],
+      'timestamp': FieldValue.serverTimestamp(),
+      'lastMessage': null,
+    }, SetOptions(merge: true));
+  }
 
-  // ── Helpers de datos ───────────────────────────────────────────────────────
+  void _showMatch(Map<String, dynamic> profile) {
+    setState(() {
+      _matchedProfile = profile;
+      _showMatchOverlay = true;
+    });
+  }
+
+  void _closeMatchOverlay() {
+    setState(() {
+      _showMatchOverlay = false;
+      _matchedProfile = null;
+    });
+  }
+
+  // ── Swipe angles ────────────────────────────────────────────────────────────
+  double get _rotationAngle => (_dragOffset.dx / 350) * 0.25;
+  double get _swipeProgress => (_dragOffset.dx / 120).clamp(-1.0, 1.0);
+
+  // ── Helpers de datos ────────────────────────────────────────────────────────
   String _nombre(Map<String, dynamic> p) {
     final n = p['nombre'] ?? '';
     final a = p['apellido'] ?? '';
@@ -226,10 +263,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   List<String> _intereses(Map<String, dynamic> p) {
     final ids = List<String>.from(p['intereses'] ?? []);
-    return ids
-        .take(4)
-        .map((id) => _catalogoIntereses[id] ?? id)
-        .toList();
+    return ids.take(4).map((id) => _catalogoIntereses[id] ?? id).toList();
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -237,15 +271,29 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(),
-            Expanded(child: _buildCardStack()),
-            _buildActionButtons(),
-            const SizedBox(height: 16),
-          ],
-        ),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _buildTopBar(),
+                Expanded(child: _buildCardStack()),
+                _buildActionButtons(),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+          // ── Match overlay ──────────────────────────────────────────────────
+          if (_showMatchOverlay && _matchedProfile != null)
+            _MatchOverlay(
+              profile: _matchedProfile!,
+              onClose: _closeMatchOverlay,
+              onMessage: () {
+                _closeMatchOverlay();
+                // TODO: navegar al chat cuando exista
+              },
+            ),
+        ],
       ),
     );
   }
@@ -272,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           Row(
             children: [
-              _topBarIcon(Icons.tune_rounded, () {_showFilterModal();}),
+              _topBarIcon(Icons.tune_rounded, () => _showFilterModal()),
               const SizedBox(width: 8),
               _topBarIcon(Icons.notifications_none_rounded, () {}),
             ],
@@ -314,14 +362,13 @@ class _HomeScreenState extends State<HomeScreen>
     return LayoutBuilder(builder: (context, constraints) {
       final List<Widget> cards = [];
 
-      // Show up to 3 cards stacked
       for (int i = (_currentIndex + 2).clamp(0, _profiles.length - 1);
           i >= _currentIndex;
           i--) {
         if (i >= _profiles.length) continue;
         final profile = _profiles[i];
         final isTop = i == _currentIndex;
-        final stackPos = i - _currentIndex; // 0=top, 1=next, 2=back
+        final stackPos = i - _currentIndex;
 
         if (isTop) {
           cards.add(_buildTopCard(profile, constraints));
@@ -355,14 +402,12 @@ class _HomeScreenState extends State<HomeScreen>
           child: Stack(
             children: [
               _buildCardBody(profile, cardW, cardH),
-              // Like stamp
               if (_swipeProgress > 0.15)
                 Positioned(
                   top: 40,
                   left: 24,
                   child: _buildStamp('LIKE', _matchGreen, _swipeProgress),
                 ),
-              // Nope stamp
               if (_swipeProgress < -0.15)
                 Positioned(
                   top: 40,
@@ -382,7 +427,6 @@ class _HomeScreenState extends State<HomeScreen>
     final cardH = constraints.maxHeight;
     final scale = 1.0 - (stackPos * 0.04);
     final translateY = stackPos * 12.0;
-    // As top card drags, next card scales up slightly
     final dragInfluence = (_dragOffset.dx.abs() / 150).clamp(0.0, 1.0);
     final adjustedScale =
         scale + (dragInfluence * 0.04 * (2 - stackPos).clamp(0.0, 2.0));
@@ -427,7 +471,6 @@ class _HomeScreenState extends State<HomeScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // ── Foto de fondo ──────────────────────────────────────────────
             foto != null
                 ? Image.network(
                     foto,
@@ -447,8 +490,6 @@ class _HomeScreenState extends State<HomeScreen>
                     errorBuilder: (_, __, ___) => _photoPlaceholder(),
                   )
                 : _photoPlaceholder(),
-
-            // ── Gradiente inferior ─────────────────────────────────────────
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -467,16 +508,10 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-
-            // ── Dim overlay para cards de fondo ────────────────────────────
             if (dimmed)
               Positioned.fill(
-                child: Container(
-                  color: _bg.withOpacity(0.15),
-                ),
+                child: Container(color: _bg.withOpacity(0.15)),
               ),
-
-            // ── Info ───────────────────────────────────────────────────────
             Positioned(
               left: 22,
               right: 22,
@@ -484,7 +519,6 @@ class _HomeScreenState extends State<HomeScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nombre + edad
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -510,7 +544,6 @@ class _HomeScreenState extends State<HomeScreen>
                       ],
                     ],
                   ),
-                  // Carrera
                   if (carrera.isNotEmpty) ...[
                     const SizedBox(height: 5),
                     Row(
@@ -528,7 +561,6 @@ class _HomeScreenState extends State<HomeScreen>
                       ],
                     ),
                   ],
-                  // Bio
                   if (bio.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -542,36 +574,16 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                   ],
-                  // Intereses
                   if (intereses.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: intereses
-                          .map((int) => _interesChip(int))
-                          .toList(),
+                      children:
+                          intereses.map((i) => _interesChip(i)).toList(),
                     ),
                   ],
                 ],
-              ),
-            ),
-
-            // ── Indicador de distancia swipe (barra superior) ──────────────
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-                child: LinearProgressIndicator(
-                  value: 0,
-                  backgroundColor: Colors.transparent,
-                  minHeight: 3,
-                ),
               ),
             ),
           ],
@@ -641,7 +653,10 @@ class _HomeScreenState extends State<HomeScreen>
             height: 90,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [_pinkStart.withOpacity(0.15), _orangeEnd.withOpacity(0.1)],
+                colors: [
+                  _pinkStart.withOpacity(0.15),
+                  _orangeEnd.withOpacity(0.1)
+                ],
               ),
               shape: BoxShape.circle,
             ),
@@ -674,8 +689,7 @@ class _HomeScreenState extends State<HomeScreen>
               _loadProfiles();
             }),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                     colors: [_pinkStart, _orangeEnd]),
@@ -711,7 +725,6 @@ class _HomeScreenState extends State<HomeScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Rewind (pequeño)
           _actionButton(
             icon: Icons.replay_rounded,
             size: 48,
@@ -726,7 +739,6 @@ class _HomeScreenState extends State<HomeScreen>
                     })
                 : null,
           ),
-          // Nope (grande)
           _actionButton(
             icon: Icons.close_rounded,
             size: 64,
@@ -736,17 +748,16 @@ class _HomeScreenState extends State<HomeScreen>
             iconColor: _pinkStart,
             onTap: hasProfiles ? () => _doSwipe(like: false) : null,
           ),
-          // Like (grande)
           _actionButton(
             icon: Icons.favorite_rounded,
             size: 64,
             iconSize: 30,
-            gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+            gradient:
+                const LinearGradient(colors: [_pinkStart, _orangeEnd]),
             color: null,
             iconColor: Colors.white,
             onTap: hasProfiles ? () => _doSwipe(like: true) : null,
           ),
-          // Super like (pequeño)
           _actionButton(
             icon: Icons.star_rounded,
             size: 48,
@@ -792,97 +803,92 @@ class _HomeScreenState extends State<HomeScreen>
               ? Border.all(color: Colors.white.withOpacity(0.07))
               : null,
         ),
-        child: Icon(icon, color: iconColor.withOpacity(onTap != null ? 1.0 : 0.3), size: iconSize),
+        child: Icon(icon,
+            color: iconColor.withOpacity(onTap != null ? 1.0 : 0.3),
+            size: iconSize),
       ),
     );
   }
 
   void _showFilterModal() {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: _surface,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-    ),
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (BuildContext context, StateSetter setModalState) {
-          return Container(
-            // Ajuste de altura basado en el contenido para que no se vea pequeño
-            padding: EdgeInsets.only(
-              left: 28, 
-              right: 28, 
-              top: 15, 
-              bottom: MediaQuery.of(context).padding.bottom + 20
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Tirador superior
-                Center(
-                  child: Container(
-                    width: 50, height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(10)
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                  left: 28,
+                  right: 28,
+                  top: 15,
+                  bottom: MediaQuery.of(context).padding.bottom + 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
-                ),
-                const SizedBox(height: 25),
-                const Center(
-                  child: Text("AJUSTES DE BÚSQUEDA",
-                    style: TextStyle(color: _textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-                ),
-                const SizedBox(height: 30),
-
-                // SECCIÓN: EDAD
-                _buildSectionHeader("Rango de Edad", "${_currentFilters.minEdad} - ${_currentFilters.maxEdad}"),
-                RangeSlider(
-                  values: RangeValues(_currentFilters.minEdad.toDouble(), _currentFilters.maxEdad.toDouble()),
-                  min: 18, max: 60,
-                  activeColor: _pinkStart,
-                  inactiveColor: Colors.white12,
-                  onChanged: (values) {
-                    setModalState(() {
-                      _currentFilters.minEdad = values.start.round();
-                      _currentFilters.maxEdad = values.end.round();
-                    });
-                  },
-                ),
-                const Divider(color: Colors.white10, height: 40),
-
-                // SECCIÓN: CARRERA
-                _buildSectionHeader(
-                  "Carrera", 
-                  _currentFilters.carreras.isEmpty 
-                      ? "Todas" 
-                      : _currentFilters.carreras.join(", ")
-                ),
-                const SizedBox(height: 12),
-                _buildCarrerasSelector(setModalState),
-
-      
-                const Divider(color: Colors.white10, height: 40),
-
-                // SECCIÓN: INTERESES
-                _buildSectionHeader("Intereses", "${_currentFilters.intereses.length} seleccionados"),
-                const SizedBox(height: 16),
-                _buildInteresesSelector(setModalState),
-
-                const SizedBox(height: 30),
-                Center(
-                  child: _buildApplyButton(),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    },
-  );
-}
+                  const SizedBox(height: 25),
+                  const Center(
+                    child: Text("AJUSTES DE BÚSQUEDA",
+                        style: TextStyle(
+                            color: _textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.5)),
+                  ),
+                  const SizedBox(height: 30),
+                  _buildSectionHeader("Rango de Edad",
+                      "${_currentFilters.minEdad} - ${_currentFilters.maxEdad}"),
+                  RangeSlider(
+                    values: RangeValues(_currentFilters.minEdad.toDouble(),
+                        _currentFilters.maxEdad.toDouble()),
+                    min: 18,
+                    max: 60,
+                    activeColor: _pinkStart,
+                    inactiveColor: Colors.white12,
+                    onChanged: (values) {
+                      setModalState(() {
+                        _currentFilters.minEdad = values.start.round();
+                        _currentFilters.maxEdad = values.end.round();
+                      });
+                    },
+                  ),
+                  const Divider(color: Colors.white10, height: 40),
+                  _buildSectionHeader(
+                      "Carrera",
+                      _currentFilters.carreras.isEmpty
+                          ? "Todas"
+                          : _currentFilters.carreras.join(", ")),
+                  const SizedBox(height: 12),
+                  _buildCarrerasSelector(setModalState),
+                  const Divider(color: Colors.white10, height: 40),
+                  _buildSectionHeader("Intereses",
+                      "${_currentFilters.intereses.length} seleccionados"),
+                  const SizedBox(height: 16),
+                  _buildInteresesSelector(setModalState),
+                  const SizedBox(height: 30),
+                  Center(child: _buildApplyButton()),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Future<void> _fetchProfiles() async {
     setState(() => _isLoading = true);
@@ -890,44 +896,47 @@ class _HomeScreenState extends State<HomeScreen>
     if (user == null) return;
 
     try {
-      // 1. Traer todos los usuarios que no sean el actual
-      // Nota: Para filtros complejos, traemos la base y filtramos en local para evitar 
-      // errores de índices compuestos en Firestore.
       final querySnapshot = await FirebaseFirestore.instance
           .collection('usuario')
           .where(FieldPath.documentId, isNotEqualTo: user.uid)
           .get();
 
-      // 2. Transformar documentos a lista de mapas
       List<Map<String, dynamic>> allUsers = querySnapshot.docs
           .map((doc) => {...doc.data(), 'id': doc.id})
           .toList();
 
-      // 3. Aplicar Filtros 
+      final interesesSnap =
+          await FirebaseFirestore.instance.collection('intereses').get();
+      final mapa = <String, String>{};
+      for (final doc in interesesSnap.docs) {
+        final data = doc.data();
+        mapa[doc.id] = data['nombre'] as String? ?? doc.id;
+      }
+
       final filteredList = allUsers.where((u) {
-        // Filtro de Edad
-        final edad = u['edad'] is int ? u['edad'] : (int.tryParse(u['edad']?.toString() ?? '0') ?? 0);
-        bool cumpleEdad = edad >= _currentFilters.minEdad && edad <= _currentFilters.maxEdad;
-
-        // Filtro de Carrera
-        bool cumpleCarrera = _currentFilters.carreras == null || 
-                            u['carrera'] == _currentFilters.carreras;
-
-        // Filtro de Intereses (Si el filtro tiene intereses, el perfil debe tener al menos uno igual)
-        List<String> interesesUsuario = List<String>.from(u['intereses'] ?? []);
-        bool cumpleIntereses = _currentFilters.intereses.isEmpty || 
-                              interesesUsuario.any((i) => _currentFilters.intereses.contains(i));
-
+        final edad = u['edad'] is int
+            ? u['edad']
+            : (int.tryParse(u['edad']?.toString() ?? '0') ?? 0);
+        bool cumpleEdad = edad >= _currentFilters.minEdad &&
+            edad <= _currentFilters.maxEdad;
+        bool cumpleCarrera = _currentFilters.carreras.isEmpty ||
+            _currentFilters.carreras.contains(u['carrera']);
+        List<String> interesesUsuario =
+            List<String>.from(u['intereses'] ?? []);
+        bool cumpleIntereses = _currentFilters.intereses.isEmpty ||
+            interesesUsuario
+                .any((i) => _currentFilters.intereses.contains(i));
         return cumpleEdad && cumpleCarrera && cumpleIntereses;
       }).toList();
 
       setState(() {
+        _catalogoIntereses = mapa;
         _profiles = filteredList;
-        _currentIndex = 0; // Reiniciar al primer perfil tras filtrar
+        _currentIndex = 0;
         _isLoading = false;
       });
     } catch (e) {
-      print("Error cargando perfiles: $e");
+      debugPrint("Error cargando perfiles: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -935,13 +944,14 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildApplyButton() {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).pop(); // Cerrar modal
-        _fetchProfiles(); // Refrescar perfiles con los nuevos filtros
+        Navigator.of(context).pop();
+        _fetchProfiles();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+          gradient:
+              const LinearGradient(colors: [_pinkStart, _orangeEnd]),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
@@ -964,116 +974,690 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildSectionHeader(String title, String value) {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Text(title, style: const TextStyle(color: _textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
-      Text(value, style: const TextStyle(color: _pinkStart, fontSize: 15, fontWeight: FontWeight.bold)),
-    ],
-  );
-}
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title,
+            style: const TextStyle(
+                color: _textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600)),
+        Text(value,
+            style: const TextStyle(
+                color: _pinkStart,
+                fontSize: 15,
+                fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
 
-Widget _buildCarrerasSelector(StateSetter setModalState) {
-  final listaCarreras = [
-    'Sistemas', 'Industrial', 'Gestión', 'Mecatrónica', 'Electrónica'
-  ];
+  Widget _buildCarrerasSelector(StateSetter setModalState) {
+    final listaCarreras = [
+      'Sistemas',
+      'Industrial',
+      'Gestión',
+      'Mecatrónica',
+      'Electrónica'
+    ];
 
-  return Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: listaCarreras.map((carrera) {
-      final isSelected = _currentFilters.carreras.contains(carrera);
-      
-      return GestureDetector(
-        onTap: () {
-          setModalState(() {
-            // Creamos una copia mutable de la lista actual
-            List<String> listaNueva = List.from(_currentFilters.carreras);
-            if (isSelected) {
-              listaNueva.remove(carrera);
-            } else {
-              listaNueva.add(carrera);
-            }
-            _currentFilters.carreras = listaNueva;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? _pinkStart.withOpacity(0.1) : Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: listaCarreras.map((carrera) {
+        final isSelected = _currentFilters.carreras.contains(carrera);
+        return GestureDetector(
+          onTap: () {
+            setModalState(() {
+              List<String> listaNueva = List.from(_currentFilters.carreras);
+              if (isSelected) {
+                listaNueva.remove(carrera);
+              } else {
+                listaNueva.add(carrera);
+              }
+              _currentFilters.carreras = listaNueva;
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? _pinkStart.withOpacity(0.1)
+                  : Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? _pinkStart : Colors.white10,
+                width: 1.5,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: _pinkStart.withOpacity(0.4),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [],
+            ),
+            child: Text(
+              carrera,
+              style: TextStyle(
+                color: isSelected ? Colors.white : _textSecondary,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildInteresesSelector(StateSetter setModalState) {
+    final listaIntereses = [
+      "Deportes",
+      "Música",
+      "Programación",
+      "Cine",
+      "Lectura",
+      "Viajes",
+      "Anime",
+      "Videojuegos",
+      "Gimnasio"
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: listaIntereses.map((interes) {
+        final isSelected = _currentFilters.intereses.contains(interes);
+        return FilterChip(
+          label: Text(interes),
+          selected: isSelected,
+          selectedColor: _pinkStart.withOpacity(0.2),
+          checkmarkColor: _pinkStart,
+          labelStyle: TextStyle(
+            color: isSelected ? _pinkStart : _textSecondary,
+            fontSize: 13,
+            fontWeight:
+                isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+          backgroundColor: Colors.white.withOpacity(0.05),
+          shape: StadiumBorder(
+            side: BorderSide(
               color: isSelected ? _pinkStart : Colors.white10,
-              width: 1.5,
             ),
-            // EFECTO DE BRILLO (GLOW)
-            boxShadow: isSelected ? [
-              BoxShadow(
-                color: _pinkStart.withOpacity(0.4),
-                blurRadius: 10,
-                spreadRadius: 1,
+          ),
+          onSelected: (bool selected) {
+            setModalState(() {
+              if (selected) {
+                _currentFilters.intereses = [
+                  ..._currentFilters.intereses,
+                  interes
+                ];
+              } else {
+                _currentFilters.intereses = _currentFilters.intereses
+                    .where((i) => i != interes)
+                    .toList();
+              }
+            });
+          },
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Match Overlay con animaciones
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _MatchOverlay extends StatefulWidget {
+  final Map<String, dynamic> profile;
+  final VoidCallback onClose;
+  final VoidCallback onMessage;
+
+  const _MatchOverlay({
+    required this.profile,
+    required this.onClose,
+    required this.onMessage,
+  });
+
+  @override
+  State<_MatchOverlay> createState() => _MatchOverlayState();
+}
+
+class _MatchOverlayState extends State<_MatchOverlay>
+    with TickerProviderStateMixin {
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+
+  late AnimationController _bgController;
+  late AnimationController _contentController;
+  late AnimationController _heartController;
+  late AnimationController _avatarController;
+
+  late Animation<double> _bgOpacity;
+  late Animation<double> _contentScale;
+  late Animation<double> _contentOpacity;
+  late Animation<double> _heartScale;
+  late Animation<double> _heartRotation;
+  late Animation<double> _textSlide;
+  late Animation<double> _leftAvatarSlide;
+  late Animation<double> _rightAvatarSlide;
+  late Animation<double> _particleOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _bgController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _contentController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _heartController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _avatarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+
+    _bgOpacity = CurvedAnimation(parent: _bgController, curve: Curves.easeOut);
+
+    _contentScale = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _contentController, curve: Curves.elasticOut),
+    );
+    _contentOpacity = CurvedAnimation(
+      parent: _contentController,
+      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+    );
+
+    _heartScale = TweenSequence<double>([
+      TweenSequenceItem(
+          tween: Tween(begin: 0.0, end: 1.3), weight: 40),
+      TweenSequenceItem(
+          tween: Tween(begin: 1.3, end: 0.9), weight: 20),
+      TweenSequenceItem(
+          tween: Tween(begin: 0.9, end: 1.1), weight: 20),
+      TweenSequenceItem(
+          tween: Tween(begin: 1.1, end: 1.0), weight: 20),
+    ]).animate(
+      CurvedAnimation(parent: _heartController, curve: Curves.easeOut),
+    );
+    _heartRotation = Tween<double>(begin: -0.15, end: 0.0).animate(
+      CurvedAnimation(parent: _heartController, curve: Curves.elasticOut),
+    );
+
+    _textSlide = Tween<double>(begin: 30.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _contentController,
+        curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _leftAvatarSlide = Tween<double>(begin: -80.0, end: 0.0).animate(
+      CurvedAnimation(parent: _avatarController, curve: Curves.easeOutBack),
+    );
+    _rightAvatarSlide = Tween<double>(begin: 80.0, end: 0.0).animate(
+      CurvedAnimation(parent: _avatarController, curve: Curves.easeOutBack),
+    );
+
+    _particleOpacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_heartController);
+
+    // Secuencia de entrada
+    _bgController.forward().then((_) {
+      _avatarController.forward();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _heartController.forward();
+        _contentController.forward();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _bgController.dispose();
+    _contentController.dispose();
+    _heartController.dispose();
+    _avatarController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleClose() async {
+    await Future.wait([
+      _contentController.reverse(),
+      _avatarController.reverse(),
+    ]);
+    await _bgController.reverse();
+    widget.onClose();
+  }
+
+  String _nombre(Map<String, dynamic> p) {
+    final n = p['nombre'] ?? '';
+    final a = p['apellido'] ?? '';
+    return '$n $a'.trim().isEmpty ? 'Sin nombre' : '$n $a'.trim();
+  }
+
+  String? _foto(Map<String, dynamic> p) {
+    final f = p['foto_perfil'] as String?;
+    return (f != null && f.isNotEmpty) ? f : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matchNombre = _nombre(widget.profile);
+    final matchFoto = _foto(widget.profile);
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    return FadeTransition(
+      opacity: _bgOpacity,
+      child: GestureDetector(
+        onTap: _handleClose,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF1A0A10).withOpacity(0.97),
+                const Color(0xFF0D0408).withOpacity(0.97),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ── Corazón animado ─────────────────────────────────────────
+                AnimatedBuilder(
+                  animation: _heartController,
+                  builder: (_, __) => Transform.scale(
+                    scale: _heartScale.value,
+                    child: Transform.rotate(
+                      angle: _heartRotation.value,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Partículas decorativas
+                          Opacity(
+                            opacity: _particleOpacity.value,
+                            child: const _MatchParticles(),
+                          ),
+                          // Corazón principal
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [_pinkStart, _orangeEnd],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _pinkStart.withOpacity(
+                                      0.6 * _heartScale.value.clamp(0.0, 1.0)),
+                                  blurRadius: 30,
+                                  spreadRadius: 5,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.favorite_rounded,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── Título ──────────────────────────────────────────────────
+                AnimatedBuilder(
+                  animation: _contentController,
+                  builder: (_, __) => Transform.translate(
+                    offset: Offset(0, _textSlide.value),
+                    child: Opacity(
+                      opacity: _contentOpacity.value,
+                      child: Column(
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (b) => const LinearGradient(
+                              colors: [_pinkStart, _orangeEnd],
+                            ).createShader(b),
+                            child: const Text(
+                              '¡Es un Match!',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Tú y $matchNombre\nse han gustado mutuamente',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 16,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // ── Avatares animados ───────────────────────────────────────
+                AnimatedBuilder(
+                  animation: _avatarController,
+                  builder: (_, __) => Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Avatar usuario actual
+                      Transform.translate(
+                        offset: Offset(_leftAvatarSlide.value, 0),
+                        child: _MatchAvatar(
+                          photoUrl: currentUser?.photoURL,
+                          initials: (currentUser?.displayName ?? 'Yo')
+                              .substring(0, 1)
+                              .toUpperCase(),
+                          borderColors: const [_pinkStart, _orangeEnd],
+                        ),
+                      ),
+                      // Separador con corazón pequeño
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                        child: const Icon(
+                          Icons.favorite,
+                          color: _pinkStart,
+                          size: 22,
+                        ),
+                      ),
+                      // Avatar del match
+                      Transform.translate(
+                        offset: Offset(_rightAvatarSlide.value, 0),
+                        child: _MatchAvatar(
+                          photoUrl: matchFoto,
+                          initials:
+                              matchNombre.isNotEmpty
+                                  ? matchNombre.substring(0, 1).toUpperCase()
+                                  : '?',
+                          borderColors: const [_orangeEnd, _pinkStart],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 44),
+
+                // ── Botones ─────────────────────────────────────────────────
+                AnimatedBuilder(
+                  animation: _contentController,
+                  builder: (_, __) => Opacity(
+                    opacity: _contentOpacity.value,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        children: [
+                          // Botón principal: Enviar mensaje
+                          GestureDetector(
+                            onTap: widget.onMessage,
+                            child: Container(
+                              width: double.infinity,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [_pinkStart, _orangeEnd],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _pinkStart.withOpacity(0.4),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.chat_bubble_rounded,
+                                      color: Colors.white, size: 20),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Enviar mensaje',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 14),
+
+                          // Botón secundario: Seguir explorando
+                          GestureDetector(
+                            onTap: _handleClose,
+                            child: Container(
+                              width: double.infinity,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.07),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.15),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.explore_rounded,
+                                      color: Colors.white70, size: 20),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Seguir explorando',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Avatar del match ──────────────────────────────────────────────────────────
+class _MatchAvatar extends StatelessWidget {
+  final String? photoUrl;
+  final String initials;
+  final List<Color> borderColors;
+
+  const _MatchAvatar({
+    required this.photoUrl,
+    required this.initials,
+    required this.borderColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 110,
+      height: 110,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: borderColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: borderColors.first.withOpacity(0.5),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(3),
+      child: ClipOval(
+        child: photoUrl != null && photoUrl!.isNotEmpty
+            ? Image.network(
+                photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholder(),
               )
-            ] : [],
+            : _placeholder(),
+      ),
+    );
+  }
+
+  Widget _placeholder() {
+    return Container(
+      color: const Color(0xFF252525),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 36,
+            fontWeight: FontWeight.w700,
           ),
-          child: Text(
-            carrera,
-            style: TextStyle(
-              color: isSelected ? Colors.white : _textSecondary,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Partículas decorativas alrededor del corazón ───────────────────────────────
+class _MatchParticles extends StatelessWidget {
+  const _MatchParticles();
+
+  @override
+  Widget build(BuildContext context) {
+    const pinkStart = Color(0xFFFF4D6D);
+    const orangeEnd = Color(0xFFFF8A00);
+
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 8 partículas distribuidas en círculo
+          for (int i = 0; i < 8; i++)
+            Positioned(
+              left: 80 +
+                  65 *
+                      _cos(i * 45.0 * 3.14159 / 180) -
+                  6,
+              top: 80 +
+                  65 *
+                      _sin(i * 45.0 * 3.14159 / 180) -
+                  6,
+              child: Container(
+                width: i % 2 == 0 ? 10 : 6,
+                height: i % 2 == 0 ? 10 : 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i % 2 == 0 ? pinkStart : orangeEnd,
+                ),
+              ),
             ),
-          ),
-        ),
-      );
-    }).toList(),
-  );
+          // 4 partículas más pequeñas en diagonal
+          for (int i = 0; i < 4; i++)
+            Positioned(
+              left: 80 +
+                  45 *
+                      _cos((i * 90.0 + 22.5) * 3.14159 / 180) -
+                  4,
+              top: 80 +
+                  45 *
+                      _sin((i * 90.0 + 22.5) * 3.14159 / 180) -
+                  4,
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.7),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  double _cos(double rad) => (rad == 0)
+      ? 1.0
+      : (rad == 1.5707963)
+          ? 0.0
+          : (rad == 3.14159)
+              ? -1.0
+              : (rad == 4.7123889)
+                  ? 0.0
+                  : _cosCalc(rad);
+
+  double _sin(double rad) => _cosCalc(1.5707963 - rad);
+
+  double _cosCalc(double rad) {
+    // Aproximación con serie de Taylor para 0..2π
+    double x = rad % (2 * 3.14159265);
+    double result = 1.0;
+    double term = 1.0;
+    for (int k = 1; k <= 8; k++) {
+      term *= -x * x / ((2 * k - 1) * (2 * k));
+      result += term;
+    }
+    return result;
+  }
 }
 
-Widget _buildInteresesSelector(StateSetter setModalState) {
-  // Nota: Aquí usamos el catálogo que ya deberías tener cargado en la App
-  // Si no tienes uno, puedes usar una lista estática para pruebas:
-  final listaIntereses = ["Deportes", "Música", "Programación", "Cine", "Lectura", "Viajes", "Anime", "Videojuegos", "Gimnasio"];
-
-  return Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: listaIntereses.map((interes) {
-      final isSelected = _currentFilters.intereses.contains(interes);
-      return FilterChip(
-        label: Text(interes),
-        selected: isSelected,
-        selectedColor: _pinkStart.withOpacity(0.2),
-        checkmarkColor: _pinkStart,
-        labelStyle: TextStyle(
-          color: isSelected ? _pinkStart : _textSecondary,
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-        backgroundColor: Colors.white.withOpacity(0.05),
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: isSelected ? _pinkStart : Colors.white10,
-          ),
-        ),
-        onSelected: (bool selected) {
-          setModalState(() {
-            
-            if (selected) {
-              _currentFilters.intereses = [..._currentFilters.intereses, interes];
-            } else {
-              _currentFilters.intereses = _currentFilters.intereses
-                  .where((i) => i != interes)
-                  .toList();
-            }
-          });
-        },
-      );
-    }).toList(),
-  );
-}
-}
-
+// ── Filtros ─────────────────────────────────────────────────────────────────
 class ProfileFilters {
   int minEdad;
   int maxEdad;
