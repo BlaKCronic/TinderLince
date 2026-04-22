@@ -171,17 +171,24 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _saveLike() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null || _currentIndex >= _profiles.length) return;
-    final profile = _profiles[_currentIndex];
-    try {
-      await FirebaseFirestore.instance
-          .collection('usuario')
-          .doc(currentUser.uid)
-          .collection('likes')
-          .doc(profile['id'] as String)
-          .set({'timestamp': FieldValue.serverTimestamp()});
-    } catch (_) {}
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null || _currentIndex >= _profiles.length) return;
+  final profile = _profiles[_currentIndex];
+
+  try {
+    // Documento con ID compuesto para evitar likes duplicados
+    final docId = '${currentUser.uid}_${profile['id']}';
+    await FirebaseFirestore.instance
+        .collection('likes')
+        .doc(docId)
+        .set({
+          'from': currentUser.uid,
+          'to': profile['id'] as String,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+    } catch (e) {
+    debugPrint('Error guardando like: $e');
+    }
   }
 
   double get _rotationAngle =>
