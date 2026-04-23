@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'matches_screen.dart';
 import 'profile_screen.dart';
 
 class MainNavScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
 
   final List<Widget> _screens = const [
     HomeScreen(),
-    _ChatPlaceholder(),
+    MatchesScreen(),
     ProfileScreen(),
   ];
 
@@ -112,84 +113,6 @@ class _MainNavScreenState extends State<MainNavScreen> {
                 fontFamily: 'InterTight',
               ),
               child: Text(label),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Placeholder para la pantalla de chats/matches
-class _ChatPlaceholder extends StatelessWidget {
-  const _ChatPlaceholder();
-
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textSecondary = Color(0xFFAAAAAA);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
-                ).createShader(b),
-                child: const Text(
-                  'Matches',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: _surface,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.07)),
-                      ),
-                      child: Icon(Icons.chat_bubble_outline_rounded,
-                          color: _pinkStart.withOpacity(0.5), size: 36),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Próximamente',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Los chats con tus matches\naparecerán aquí',
-                      textAlign: TextAlign.center,
-                      style:
-                          TextStyle(color: _textSecondary, fontSize: 13, height: 1.5),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

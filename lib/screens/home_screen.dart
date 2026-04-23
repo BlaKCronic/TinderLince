@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,6 +42,10 @@ class _HomeScreenState extends State<HomeScreen>
   // ── Match overlay ───────────────────────────────────────────────────────────
   bool _showMatchOverlay = false;
   Map<String, dynamic>? _matchedProfile;
+  String? _lastMatchId;
+
+  String get _currentUserId =>
+      FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
   void initState() {
@@ -70,40 +75,6 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     _snapBackController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadProfiles() async {
-    setState(() => _isLoading = true);
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-
-    try {
-      final results = await Future.wait([
-        FirebaseFirestore.instance.collection('usuario').limit(30).get(),
-        FirebaseFirestore.instance.collection('intereses').get(),
-      ]);
-
-      final usersSnap = results[0] as QuerySnapshot;
-      final interesesSnap = results[1] as QuerySnapshot;
-
-      final mapa = <String, String>{};
-      for (final doc in interesesSnap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        mapa[doc.id] = data['nombre'] as String? ?? doc.id;
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _catalogoIntereses = mapa;
-        _profiles = usersSnap.docs
-            .where((doc) => doc.id != currentUser.uid)
-            .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
-            .toList();
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
@@ -170,14 +141,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ── Like + detección de match ───────────────────────────────────────────────
   Future<void> _saveLikeAndCheckMatch() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null || _currentIndex >= _profiles.length) return;
+    if (_currentUserId.isEmpty || _currentIndex >= _profiles.length) return;
     final profile = _profiles[_currentIndex];
     final String toUserId = profile['id'] as String;
-    final String fromUserId = currentUser.uid;
+    final String fromUserId = _currentUserId;
 
     try {
-      // 1. Guardar el like
       final docId = '${fromUserId}_$toUserId';
       await FirebaseFirestore.instance.collection('likes').doc(docId).set({
         'from': fromUserId,
@@ -185,7 +154,6 @@ class _HomeScreenState extends State<HomeScreen>
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 2. Comprobar si el otro ya nos dio like (like inverso)
       final reverseDocId = '${toUserId}_$fromUserId';
       final reverseDoc = await FirebaseFirestore.instance
           .collection('likes')
@@ -193,10 +161,9 @@ class _HomeScreenState extends State<HomeScreen>
           .get();
 
       if (reverseDoc.exists) {
-        // ¡Es un match! Guardarlo en Firestore y mostrarlo
-        await _saveMatch(fromUserId, toUserId);
+        final matchId = await _saveMatch(fromUserId, toUserId);
         if (mounted) {
-          _showMatch(profile);
+          _showMatch(profile, matchId);
         }
       }
     } catch (e) {
@@ -204,8 +171,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _saveMatch(String userA, String userB) async {
-    // ID ordenado para evitar duplicados (a_b == b_a)
+  Future<String> _saveMatch(String userA, String userB) async {
     final ids = [userA, userB]..sort();
     final matchId = '${ids[0]}_${ids[1]}';
 
@@ -213,13 +179,18 @@ class _HomeScreenState extends State<HomeScreen>
       'users': [userA, userB],
       'timestamp': FieldValue.serverTimestamp(),
       'lastMessage': null,
+      'lastMessageTime': null,
+      'lastMessageSender': null,
     }, SetOptions(merge: true));
+
+    return matchId;
   }
 
-  void _showMatch(Map<String, dynamic> profile) {
+  void _showMatch(Map<String, dynamic> profile, String matchId) {
     setState(() {
       _matchedProfile = profile;
       _showMatchOverlay = true;
+      _lastMatchId = matchId;
     });
   }
 
@@ -228,6 +199,36 @@ class _HomeScreenState extends State<HomeScreen>
       _showMatchOverlay = false;
       _matchedProfile = null;
     });
+  }
+
+  void _navigateToChat() {
+    _closeMatchOverlay();
+    if (_lastMatchId == null || _matchedProfile == null) return;
+
+    final nombre = _nombre(_matchedProfile!);
+    final foto = _foto(_matchedProfile!);
+    final otherId = _matchedProfile!['id'] as String;
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, a, b) => ChatScreen(
+          matchId: _lastMatchId!,
+          otherUserId: otherId,
+          otherUserName: nombre,
+          otherUserPhoto: foto,
+        ),
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 350),
+      ),
+    );
   }
 
   // ── Swipe angles ────────────────────────────────────────────────────────────
@@ -283,15 +284,11 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-          // ── Match overlay ──────────────────────────────────────────────────
           if (_showMatchOverlay && _matchedProfile != null)
             _MatchOverlay(
               profile: _matchedProfile!,
               onClose: _closeMatchOverlay,
-              onMessage: () {
-                _closeMatchOverlay();
-                // TODO: navegar al chat cuando exista
-              },
+              onMessage: _navigateToChat,
             ),
         ],
       ),
@@ -686,7 +683,7 @@ class _HomeScreenState extends State<HomeScreen>
           GestureDetector(
             onTap: () => setState(() {
               _currentIndex = 0;
-              _loadProfiles();
+              _fetchProfiles();
             }),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
@@ -1030,21 +1027,13 @@ class _HomeScreenState extends State<HomeScreen>
                 color: isSelected ? _pinkStart : Colors.white10,
                 width: 1.5,
               ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: _pinkStart.withOpacity(0.4),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      )
-                    ]
-                  : [],
             ),
             child: Text(
               carrera,
               style: TextStyle(
                 color: isSelected ? Colors.white : _textSecondary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight:
+                    isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 13,
               ),
             ),
@@ -1080,8 +1069,7 @@ class _HomeScreenState extends State<HomeScreen>
           labelStyle: TextStyle(
             color: isSelected ? _pinkStart : _textSecondary,
             fontSize: 13,
-            fontWeight:
-                isSelected ? FontWeight.bold : FontWeight.normal,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
           backgroundColor: Colors.white.withOpacity(0.05),
           shape: StadiumBorder(
@@ -1110,7 +1098,7 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Match Overlay con animaciones
+// Match Overlay
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _MatchOverlay extends StatefulWidget {
@@ -1153,24 +1141,16 @@ class _MatchOverlayState extends State<_MatchOverlay>
     super.initState();
 
     _bgController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
+        vsync: this, duration: const Duration(milliseconds: 400));
     _contentController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
+        vsync: this, duration: const Duration(milliseconds: 700));
     _heartController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
+        vsync: this, duration: const Duration(milliseconds: 900));
     _avatarController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
+        vsync: this, duration: const Duration(milliseconds: 600));
 
-    _bgOpacity = CurvedAnimation(parent: _bgController, curve: Curves.easeOut);
-
+    _bgOpacity =
+        CurvedAnimation(parent: _bgController, curve: Curves.easeOut);
     _contentScale = Tween<double>(begin: 0.7, end: 1.0).animate(
       CurvedAnimation(parent: _contentController, curve: Curves.elasticOut),
     );
@@ -1178,44 +1158,34 @@ class _MatchOverlayState extends State<_MatchOverlay>
       parent: _contentController,
       curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
     );
-
     _heartScale = TweenSequence<double>([
-      TweenSequenceItem(
-          tween: Tween(begin: 0.0, end: 1.3), weight: 40),
-      TweenSequenceItem(
-          tween: Tween(begin: 1.3, end: 0.9), weight: 20),
-      TweenSequenceItem(
-          tween: Tween(begin: 0.9, end: 1.1), weight: 20),
-      TweenSequenceItem(
-          tween: Tween(begin: 1.1, end: 1.0), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.3), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.3, end: 0.9), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 0.9, end: 1.1), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 1.1, end: 1.0), weight: 20),
     ]).animate(
-      CurvedAnimation(parent: _heartController, curve: Curves.easeOut),
-    );
+        CurvedAnimation(parent: _heartController, curve: Curves.easeOut));
     _heartRotation = Tween<double>(begin: -0.15, end: 0.0).animate(
       CurvedAnimation(parent: _heartController, curve: Curves.elasticOut),
     );
-
     _textSlide = Tween<double>(begin: 30.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _contentController,
         curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
       ),
     );
-
     _leftAvatarSlide = Tween<double>(begin: -80.0, end: 0.0).animate(
       CurvedAnimation(parent: _avatarController, curve: Curves.easeOutBack),
     );
     _rightAvatarSlide = Tween<double>(begin: 80.0, end: 0.0).animate(
       CurvedAnimation(parent: _avatarController, curve: Curves.easeOutBack),
     );
-
     _particleOpacity = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 30),
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 40),
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
     ]).animate(_heartController);
 
-    // Secuencia de entrada
     _bgController.forward().then((_) {
       _avatarController.forward();
       Future.delayed(const Duration(milliseconds: 100), () {
@@ -1281,7 +1251,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ── Corazón animado ─────────────────────────────────────────
+                // Corazón animado
                 AnimatedBuilder(
                   animation: _heartController,
                   builder: (_, __) => Transform.scale(
@@ -1291,12 +1261,10 @@ class _MatchOverlayState extends State<_MatchOverlay>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Partículas decorativas
                           Opacity(
                             opacity: _particleOpacity.value,
                             child: const _MatchParticles(),
                           ),
-                          // Corazón principal
                           Container(
                             width: 80,
                             height: 80,
@@ -1309,28 +1277,23 @@ class _MatchOverlayState extends State<_MatchOverlay>
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: _pinkStart.withOpacity(
-                                      0.6 * _heartScale.value.clamp(0.0, 1.0)),
+                                  color: _pinkStart.withOpacity(0.6 *
+                                      _heartScale.value.clamp(0.0, 1.0)),
                                   blurRadius: 30,
                                   spreadRadius: 5,
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.favorite_rounded,
-                              color: Colors.white,
-                              size: 40,
-                            ),
+                            child: const Icon(Icons.favorite_rounded,
+                                color: Colors.white, size: 40),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 32),
-
-                // ── Título ──────────────────────────────────────────────────
+                // Título
                 AnimatedBuilder(
                   animation: _contentController,
                   builder: (_, __) => Transform.translate(
@@ -1368,16 +1331,13 @@ class _MatchOverlayState extends State<_MatchOverlay>
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 40),
-
-                // ── Avatares animados ───────────────────────────────────────
+                // Avatares
                 AnimatedBuilder(
                   animation: _avatarController,
                   builder: (_, __) => Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Avatar usuario actual
                       Transform.translate(
                         offset: Offset(_leftAvatarSlide.value, 0),
                         child: _MatchAvatar(
@@ -1388,34 +1348,26 @@ class _MatchOverlayState extends State<_MatchOverlay>
                           borderColors: const [_pinkStart, _orangeEnd],
                         ),
                       ),
-                      // Separador con corazón pequeño
                       Container(
                         margin: const EdgeInsets.symmetric(horizontal: 12),
-                        child: const Icon(
-                          Icons.favorite,
-                          color: _pinkStart,
-                          size: 22,
-                        ),
+                        child: const Icon(Icons.favorite,
+                            color: _pinkStart, size: 22),
                       ),
-                      // Avatar del match
                       Transform.translate(
                         offset: Offset(_rightAvatarSlide.value, 0),
                         child: _MatchAvatar(
                           photoUrl: matchFoto,
-                          initials:
-                              matchNombre.isNotEmpty
-                                  ? matchNombre.substring(0, 1).toUpperCase()
-                                  : '?',
+                          initials: matchNombre.isNotEmpty
+                              ? matchNombre.substring(0, 1).toUpperCase()
+                              : '?',
                           borderColors: const [_orangeEnd, _pinkStart],
                         ),
                       ),
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 44),
-
-                // ── Botones ─────────────────────────────────────────────────
+                // Botones
                 AnimatedBuilder(
                   animation: _contentController,
                   builder: (_, __) => Opacity(
@@ -1424,7 +1376,6 @@ class _MatchOverlayState extends State<_MatchOverlay>
                       padding: const EdgeInsets.symmetric(horizontal: 32),
                       child: Column(
                         children: [
-                          // Botón principal: Enviar mensaje
                           GestureDetector(
                             onTap: widget.onMessage,
                             child: Container(
@@ -1432,8 +1383,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                               height: 54,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [_pinkStart, _orangeEnd],
-                                ),
+                                    colors: [_pinkStart, _orangeEnd]),
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
@@ -1455,17 +1405,13 @@ class _MatchOverlayState extends State<_MatchOverlay>
                                       color: Colors.white,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.3,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-
                           const SizedBox(height: 14),
-
-                          // Botón secundario: Seguir explorando
                           GestureDetector(
                             onTap: _handleClose,
                             child: Container(
@@ -1475,8 +1421,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                                 color: Colors.white.withOpacity(0.07),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.15),
-                                ),
+                                    color: Colors.white.withOpacity(0.15)),
                               ),
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1510,7 +1455,6 @@ class _MatchOverlayState extends State<_MatchOverlay>
   }
 }
 
-// ── Avatar del match ──────────────────────────────────────────────────────────
 class _MatchAvatar extends StatelessWidget {
   final String? photoUrl;
   final String initials;
@@ -1545,11 +1489,8 @@ class _MatchAvatar extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       child: ClipOval(
         child: photoUrl != null && photoUrl!.isNotEmpty
-            ? Image.network(
-                photoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder(),
-              )
+            ? Image.network(photoUrl!, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _placeholder())
             : _placeholder(),
       ),
     );
@@ -1559,20 +1500,16 @@ class _MatchAvatar extends StatelessWidget {
     return Container(
       color: const Color(0xFF252525),
       child: Center(
-        child: Text(
-          initials,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 36,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        child: Text(initials,
+            style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 36,
+                fontWeight: FontWeight.w700)),
       ),
     );
   }
 }
 
-// ── Partículas decorativas alrededor del corazón ───────────────────────────────
 class _MatchParticles extends StatelessWidget {
   const _MatchParticles();
 
@@ -1580,24 +1517,16 @@ class _MatchParticles extends StatelessWidget {
   Widget build(BuildContext context) {
     const pinkStart = Color(0xFFFF4D6D);
     const orangeEnd = Color(0xFFFF8A00);
-
     return SizedBox(
       width: 160,
       height: 160,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 8 partículas distribuidas en círculo
           for (int i = 0; i < 8; i++)
             Positioned(
-              left: 80 +
-                  65 *
-                      _cos(i * 45.0 * 3.14159 / 180) -
-                  6,
-              top: 80 +
-                  65 *
-                      _sin(i * 45.0 * 3.14159 / 180) -
-                  6,
+              left: 80 + 65 * _cos(i * 45.0 * 3.14159 / 180) - 6,
+              top: 80 + 65 * _sin(i * 45.0 * 3.14159 / 180) - 6,
               child: Container(
                 width: i % 2 == 0 ? 10 : 6,
                 height: i % 2 == 0 ? 10 : 6,
@@ -1607,24 +1536,20 @@ class _MatchParticles extends StatelessWidget {
                 ),
               ),
             ),
-          // 4 partículas más pequeñas en diagonal
           for (int i = 0; i < 4; i++)
             Positioned(
               left: 80 +
-                  45 *
-                      _cos((i * 90.0 + 22.5) * 3.14159 / 180) -
+                  45 * _cos((i * 90.0 + 22.5) * 3.14159 / 180) -
                   4,
               top: 80 +
-                  45 *
-                      _sin((i * 90.0 + 22.5) * 3.14159 / 180) -
+                  45 * _sin((i * 90.0 + 22.5) * 3.14159 / 180) -
                   4,
               child: Container(
                 width: 5,
                 height: 5,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.7),
-                ),
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.7)),
               ),
             ),
         ],
@@ -1632,20 +1557,9 @@ class _MatchParticles extends StatelessWidget {
     );
   }
 
-  double _cos(double rad) => (rad == 0)
-      ? 1.0
-      : (rad == 1.5707963)
-          ? 0.0
-          : (rad == 3.14159)
-              ? -1.0
-              : (rad == 4.7123889)
-                  ? 0.0
-                  : _cosCalc(rad);
-
+  double _cos(double rad) => _cosCalc(rad);
   double _sin(double rad) => _cosCalc(1.5707963 - rad);
-
   double _cosCalc(double rad) {
-    // Aproximación con serie de Taylor para 0..2π
     double x = rad % (2 * 3.14159265);
     double result = 1.0;
     double term = 1.0;
@@ -1657,7 +1571,6 @@ class _MatchParticles extends StatelessWidget {
   }
 }
 
-// ── Filtros ─────────────────────────────────────────────────────────────────
 class ProfileFilters {
   int minEdad;
   int maxEdad;
