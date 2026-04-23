@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'chat_screen.dart';
+import 'user_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -317,6 +318,8 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           Row(
             children: [
+              _topBarIcon(Icons.search_rounded, () => _showSearchModal()),
+              const SizedBox(width: 8),
               _topBarIcon(Icons.tune_rounded, () => _showFilterModal()),
               const SizedBox(width: 8),
               _topBarIcon(Icons.notifications_none_rounded, () {}),
@@ -1095,6 +1098,19 @@ class _HomeScreenState extends State<HomeScreen>
       }).toList(),
     );
   }
+
+  // ── Modal de búsqueda de perfiles ──────────────────────────────────────────
+  void _showSearchModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _SearchSheet(catalogoIntereses: _catalogoIntereses),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1583,4 +1599,435 @@ class ProfileFilters {
     this.carreras = const [],
     this.intereses = const [],
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Bottom sheet de búsqueda de perfiles
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _SearchSheet extends StatefulWidget {
+  final Map<String, String> catalogoIntereses;
+
+  const _SearchSheet({required this.catalogoIntereses});
+
+  @override
+  State<_SearchSheet> createState() => _SearchSheetState();
+}
+
+class _SearchSheetState extends State<_SearchSheet> {
+  static const _surface = Color(0xFF1E1E1E);
+  static const _inputFill = Color(0xFF252525);
+  static const _card = Color(0xFF252525);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
+
+  final TextEditingController _searchCtrl = TextEditingController();
+  final String _currentUserId =
+      FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _results = [];
+  bool _loading = true;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final snap =
+          await FirebaseFirestore.instance.collection('usuario').get();
+      if (!mounted) return;
+      setState(() {
+        _allUsers = snap.docs
+            .where((d) => d.id != _currentUserId)
+            .map((d) => {'id': d.id, ...d.data()})
+            .toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _onQueryChanged(String value) {
+    final q = value.trim().toLowerCase();
+    setState(() {
+      _query = q;
+      if (q.isEmpty) {
+        _results = [];
+        return;
+      }
+      _results = _allUsers.where((u) {
+        final nombre = (u['nombre'] ?? '').toString().toLowerCase();
+        final apellido = (u['apellido'] ?? '').toString().toLowerCase();
+        final carrera = (u['carrera'] ?? '').toString().toLowerCase();
+        final nombreCompleto = '$nombre $apellido';
+        return nombre.contains(q) ||
+            apellido.contains(q) ||
+            nombreCompleto.contains(q) ||
+            carrera.contains(q);
+      }).toList();
+    });
+  }
+
+  String _nombreCompleto(Map<String, dynamic> u) {
+    final n = u['nombre'] ?? '';
+    final a = u['apellido'] ?? '';
+    return '$n $a'.trim().isEmpty ? 'Usuario' : '$n $a'.trim();
+  }
+
+  String? _foto(Map<String, dynamic> u) {
+    final f = u['foto_perfil'] as String?;
+    return (f != null && f.isNotEmpty) ? f : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              // Handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (b) => const LinearGradient(
+                        colors: [_pinkStart, _orangeEnd],
+                      ).createShader(b),
+                      child: const Text(
+                        'Buscar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded,
+                            color: _textSecondary, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Input de búsqueda
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _inputFill,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.06)),
+                  ),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    autofocus: true,
+                    style: const TextStyle(
+                        color: _textPrimary, fontSize: 15),
+                    onChanged: _onQueryChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Nombre, apellido o carrera...',
+                      hintStyle: const TextStyle(
+                          color: Color(0xFF555555), fontSize: 14),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: _textSecondary, size: 20),
+                      suffixIcon: _query.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded,
+                                  color: _textSecondary, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                _onQueryChanged('');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Resultados
+              Expanded(
+                child: _buildResults(scrollController),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResults(ScrollController scrollController) {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(_pinkStart),
+          strokeWidth: 2,
+        ),
+      );
+    }
+
+    if (_query.isEmpty) {
+      return _buildHint(
+        icon: Icons.search_rounded,
+        title: 'Busca por nombre o carrera',
+        sub:
+            'Escribe al menos una letra para\nencontrar a alguien en Lince',
+      );
+    }
+
+    if (_results.isEmpty) {
+      return _buildHint(
+        icon: Icons.person_search_outlined,
+        title: 'Sin resultados',
+        sub: 'No encontramos a nadie con "$_query"',
+      );
+    }
+
+    return ListView.separated(
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      itemCount: _results.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 6),
+      itemBuilder: (_, i) => _buildTile(_results[i]),
+    );
+  }
+
+  Widget _buildHint(
+      {required IconData icon,
+      required String title,
+      required String sub}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _pinkStart.withOpacity(0.12),
+                    _orangeEnd.withOpacity(0.08)
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon,
+                  color: _pinkStart.withOpacity(0.6), size: 30),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                color: _textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              sub,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _textSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTile(Map<String, dynamic> user) {
+    final nombre = _nombreCompleto(user);
+    final foto = _foto(user);
+    final carrera =
+        (user['carrera'] as String?)?.trim() ?? '';
+    final edad = user['edad']?.toString().trim() ?? '';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, a, b) =>
+                UserProfileScreen(userId: user['id'] as String),
+            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1, 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                  parent: anim, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+            transitionDuration: const Duration(milliseconds: 300),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [_pinkStart, _orangeEnd],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              padding: const EdgeInsets.all(2),
+              child: ClipOval(
+                child: foto != null
+                    ? Image.network(
+                        foto,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                      )
+                    : _placeholder(nombre),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Texto
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          nombre,
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (edad.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          edad,
+                          style: const TextStyle(
+                            color: _textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (carrera.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.school_outlined,
+                            color: _pinkStart, size: 12),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            carrera,
+                            style: const TextStyle(
+                              color: _textSecondary,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: _textSecondary.withOpacity(0.5), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholder(String nombre) {
+    return Container(
+      color: const Color(0xFF333333),
+      child: Center(
+        child: Text(
+          nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
 }
