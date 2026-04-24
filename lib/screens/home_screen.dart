@@ -4,6 +4,69 @@ import 'package:flutter/material.dart';
 import 'chat_screen.dart';
 import 'user_profile_screen.dart';
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helpers globales para likes/matches (reutilizables desde búsqueda, home, etc.)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Guarda un like y, si hay like inverso, crea el match.
+/// Devuelve el matchId si se creó match, null si solo se dio like.
+Future<String?> sendLikeAndMaybeMatch({
+  required String fromUserId,
+  required String toUserId,
+}) async {
+  if (fromUserId.isEmpty || toUserId.isEmpty || fromUserId == toUserId) {
+    return null;
+  }
+  try {
+    final docId = '${fromUserId}_$toUserId';
+    await FirebaseFirestore.instance.collection('likes').doc(docId).set({
+      'from': fromUserId,
+      'to': toUserId,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    final reverseDocId = '${toUserId}_$fromUserId';
+    final reverseDoc = await FirebaseFirestore.instance
+        .collection('likes')
+        .doc(reverseDocId)
+        .get();
+
+    if (reverseDoc.exists) {
+      final ids = [fromUserId, toUserId]..sort();
+      final matchId = '${ids[0]}_${ids[1]}';
+      await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
+        'users': [fromUserId, toUserId],
+        'timestamp': FieldValue.serverTimestamp(),
+        'lastMessage': null,
+        'lastMessageTime': null,
+        'lastMessageSender': null,
+      }, SetOptions(merge: true));
+      return matchId;
+    }
+    return null;
+  } catch (e) {
+    debugPrint('Error en sendLikeAndMaybeMatch: $e');
+    return null;
+  }
+}
+
+/// Verifica si el usuario actual ya dio like a otro usuario.
+Future<bool> hasLiked({
+  required String fromUserId,
+  required String toUserId,
+}) async {
+  if (fromUserId.isEmpty || toUserId.isEmpty) return false;
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('likes')
+        .doc('${fromUserId}_$toUserId')
+        .get();
+    return doc.exists;
+  } catch (_) {
+    return false;
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -147,44 +210,14 @@ class _HomeScreenState extends State<HomeScreen>
     final String toUserId = profile['id'] as String;
     final String fromUserId = _currentUserId;
 
-    try {
-      final docId = '${fromUserId}_$toUserId';
-      await FirebaseFirestore.instance.collection('likes').doc(docId).set({
-        'from': fromUserId,
-        'to': toUserId,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+    final matchId = await sendLikeAndMaybeMatch(
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+    );
 
-      final reverseDocId = '${toUserId}_$fromUserId';
-      final reverseDoc = await FirebaseFirestore.instance
-          .collection('likes')
-          .doc(reverseDocId)
-          .get();
-
-      if (reverseDoc.exists) {
-        final matchId = await _saveMatch(fromUserId, toUserId);
-        if (mounted) {
-          _showMatch(profile, matchId);
-        }
-      }
-    } catch (e) {
-      debugPrint('Error en like/match: $e');
+    if (matchId != null && mounted) {
+      _showMatch(profile, matchId);
     }
-  }
-
-  Future<String> _saveMatch(String userA, String userB) async {
-    final ids = [userA, userB]..sort();
-    final matchId = '${ids[0]}_${ids[1]}';
-
-    await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
-      'users': [userA, userB],
-      'timestamp': FieldValue.serverTimestamp(),
-      'lastMessage': null,
-      'lastMessageTime': null,
-      'lastMessageSender': null,
-    }, SetOptions(merge: true));
-
-    return matchId;
   }
 
   void _showMatch(Map<String, dynamic> profile, String matchId) {
@@ -322,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen>
               const SizedBox(width: 8),
               _topBarIcon(Icons.tune_rounded, () => _showFilterModal()),
               const SizedBox(width: 8),
-              _topBarIcon(Icons.notifications_none_rounded, () {}),
+              _buildNotificationsIcon(),
             ],
           ),
         ],
@@ -342,6 +375,148 @@ class _HomeScreenState extends State<HomeScreen>
           border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: Icon(icon, color: _textSecondary, size: 20),
+      ),
+    );
+  }
+
+  /// Ícono de notificaciones (campana) con badge en vivo de likes recibidos.
+  Widget _buildNotificationsIcon() {
+    // Stream de likes dirigidos al usuario actual
+    final likesStream = FirebaseFirestore.instance
+        .collection('likes')
+        .where('to', isEqualTo: _currentUserId)
+        .snapshots();
+
+    // Stream del doc de usuario (para leer lastLikesSeen)
+    final userDocStream = _currentUserId.isEmpty
+        ? const Stream<DocumentSnapshot>.empty()
+        : FirebaseFirestore.instance
+            .collection('usuario')
+            .doc(_currentUserId)
+            .snapshots();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: userDocStream,
+      builder: (context, userSnap) {
+        Timestamp? lastSeen;
+        if (userSnap.hasData && userSnap.data!.exists) {
+          final data = userSnap.data!.data() as Map<String, dynamic>?;
+          lastSeen = data?['lastLikesSeen'] as Timestamp?;
+        }
+        return StreamBuilder<QuerySnapshot>(
+          stream: likesStream,
+          builder: (context, likesSnap) {
+            int unseenCount = 0;
+            if (likesSnap.hasData) {
+              final docs = likesSnap.data!.docs;
+              unseenCount = docs.where((d) {
+                final data = d.data() as Map<String, dynamic>;
+                final ts = data['timestamp'] as Timestamp?;
+                if (ts == null) return false;
+                if (lastSeen == null) return true;
+                return ts.compareTo(lastSeen) > 0;
+              }).length;
+            }
+
+            return GestureDetector(
+              onTap: _showLikesReceivedModal,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border:
+                          Border.all(color: Colors.white.withOpacity(0.06)),
+                    ),
+                    child: Icon(
+                      unseenCount > 0
+                          ? Icons.notifications_rounded
+                          : Icons.notifications_none_rounded,
+                      color:
+                          unseenCount > 0 ? _pinkStart : _textSecondary,
+                      size: 20,
+                    ),
+                  ),
+                  if (unseenCount > 0)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: unseenCount > 9 ? 5 : 0,
+                          vertical: 2,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [_pinkStart, _orangeEnd],
+                          ),
+                          shape: unseenCount > 9
+                              ? BoxShape.rectangle
+                              : BoxShape.circle,
+                          borderRadius: unseenCount > 9
+                              ? BorderRadius.circular(9)
+                              : null,
+                          border: Border.all(color: _bg, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _pinkStart.withOpacity(0.5),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            unseenCount > 99 ? '99+' : '$unseenCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Abre el modal de likes recibidos y marca todos como vistos.
+  Future<void> _showLikesReceivedModal() async {
+    // Al abrir el modal, marcamos como vistos los likes (actualiza lastLikesSeen)
+    if (_currentUserId.isNotEmpty) {
+      FirebaseFirestore.instance
+          .collection('usuario')
+          .doc(_currentUserId)
+          .set(
+        {'lastLikesSeen': FieldValue.serverTimestamp()},
+        SetOptions(merge: true),
+      );
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _LikesReceivedSheet(
+        currentUserId: _currentUserId,
       ),
     );
   }
@@ -1894,14 +2069,10 @@ class _SearchSheetState extends State<_SearchSheet> {
   }
 
   Widget _buildTile(Map<String, dynamic> user) {
-    final nombre = _nombreCompleto(user);
-    final foto = _foto(user);
-    final carrera =
-        (user['carrera'] as String?)?.trim() ?? '';
-    final edad = user['edad']?.toString().trim() ?? '';
-
-    return GestureDetector(
-      onTap: () {
+    return _SearchResultTile(
+      user: user,
+      currentUserId: _currentUserId,
+      onOpenProfile: () {
         Navigator.pop(context);
         Navigator.push(
           context,
@@ -1920,6 +2091,252 @@ class _SearchSheetState extends State<_SearchSheet> {
           ),
         );
       },
+    );
+  }
+
+  Widget _placeholder(String nombre) {
+    return Container(
+      color: const Color(0xFF333333),
+      child: Center(
+        child: Text(
+          nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Tile individual de resultado de búsqueda (con botón de like)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _SearchResultTile extends StatefulWidget {
+  final Map<String, dynamic> user;
+  final String currentUserId;
+  final VoidCallback onOpenProfile;
+
+  const _SearchResultTile({
+    required this.user,
+    required this.currentUserId,
+    required this.onOpenProfile,
+  });
+
+  @override
+  State<_SearchResultTile> createState() => _SearchResultTileState();
+}
+
+class _SearchResultTileState extends State<_SearchResultTile> {
+  static const _card = Color(0xFF252525);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _matchGreen = Color(0xFF4CAF50);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
+
+  bool _alreadyLiked = false;
+  bool _sendingLike = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLikeStatus();
+  }
+
+  Future<void> _checkLikeStatus() async {
+    final liked = await hasLiked(
+      fromUserId: widget.currentUserId,
+      toUserId: widget.user['id'] as String,
+    );
+    if (mounted && liked) {
+      setState(() => _alreadyLiked = true);
+    }
+  }
+
+  Future<void> _handleLike() async {
+    if (_alreadyLiked || _sendingLike) return;
+    setState(() => _sendingLike = true);
+
+    final matchId = await sendLikeAndMaybeMatch(
+      fromUserId: widget.currentUserId,
+      toUserId: widget.user['id'] as String,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _alreadyLiked = true;
+      _sendingLike = false;
+    });
+
+    if (matchId != null) {
+      // ¡Match!
+      _showMatchDialog();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Le diste like a ${_nombreCompleto()} 💖'),
+        backgroundColor: _pinkStart,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+      ));
+    }
+  }
+
+  void _showMatchDialog() {
+    final nombre = _nombreCompleto();
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF1A0A10),
+                const Color(0xFF0D0408),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: _pinkStart.withOpacity(0.3),
+                blurRadius: 30,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_pinkStart, _orangeEnd],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                        color: _pinkStart.withOpacity(0.5), blurRadius: 20),
+                  ],
+                ),
+                child:
+                    const Icon(Icons.favorite, color: Colors.white, size: 36),
+              ),
+              const SizedBox(height: 16),
+              ShaderMask(
+                shaderCallback: (b) => const LinearGradient(
+                  colors: [_pinkStart, _orangeEnd],
+                ).createShader(b),
+                child: const Text(
+                  '¡Es un Match!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tú y $nombre se han\ngustado mutuamente',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'Ver en Matches',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Seguir buscando',
+                    style: TextStyle(color: _textSecondary, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _nombreCompleto() {
+    final n = widget.user['nombre'] ?? '';
+    final a = widget.user['apellido'] ?? '';
+    return '$n $a'.trim().isEmpty ? 'Usuario' : '$n $a'.trim();
+  }
+
+  String? _foto() {
+    final f = widget.user['foto_perfil'] as String?;
+    return (f != null && f.isNotEmpty) ? f : null;
+  }
+
+  Widget _placeholder(String nombre) {
+    return Container(
+      color: const Color(0xFF333333),
+      child: Center(
+        child: Text(
+          nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre = _nombreCompleto();
+    final foto = _foto();
+    final carrera =
+        (widget.user['carrera'] as String?)?.trim() ?? '';
+    final edad = widget.user['edad']?.toString().trim() ?? '';
+
+    return GestureDetector(
+      onTap: widget.onOpenProfile,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -2007,8 +2424,683 @@ class _SearchSheetState extends State<_SearchSheet> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: _textSecondary.withOpacity(0.5), size: 20),
+            const SizedBox(width: 8),
+            // Botón de like
+            GestureDetector(
+              onTap: _alreadyLiked ? null : _handleLike,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: _alreadyLiked
+                      ? const LinearGradient(
+                          colors: [_pinkStart, _orangeEnd],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: _alreadyLiked
+                      ? null
+                      : _pinkStart.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _alreadyLiked
+                        ? Colors.transparent
+                        : _pinkStart.withOpacity(0.3),
+                  ),
+                  boxShadow: _alreadyLiked
+                      ? [
+                          BoxShadow(
+                            color: _pinkStart.withOpacity(0.4),
+                            blurRadius: 10,
+                          ),
+                        ]
+                      : [],
+                ),
+                child: _sendingLike
+                    ? const Center(
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation(_pinkStart),
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        _alreadyLiked
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: _alreadyLiked
+                            ? Colors.white
+                            : _pinkStart,
+                        size: 20,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Bottom sheet de likes recibidos
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _LikesReceivedSheet extends StatelessWidget {
+  final String currentUserId;
+
+  const _LikesReceivedSheet({required this.currentUserId});
+
+  static const _surface = Color(0xFF1E1E1E);
+  static const _card = Color(0xFF252525);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: _pinkStart.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.favorite_rounded,
+                        color: _pinkStart, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (b) => const LinearGradient(
+                            colors: [_pinkStart, _orangeEnd],
+                          ).createShader(b),
+                          child: const Text(
+                            'Te dieron like',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Personas interesadas en ti',
+                          style:
+                              TextStyle(color: _textSecondary, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          color: _textSecondary, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('likes')
+                    .where('to', isEqualTo: currentUserId)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation(_pinkStart),
+                        strokeWidth: 2,
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return _buildEmptyState();
+                  }
+
+                  // Ordenar por timestamp descendente (más reciente primero)
+                  final docs = [...snapshot.data!.docs];
+                  docs.sort((a, b) {
+                    final ta = (a.data() as Map<String, dynamic>)['timestamp']
+                        as Timestamp?;
+                    final tb = (b.data() as Map<String, dynamic>)['timestamp']
+                        as Timestamp?;
+                    if (ta == null && tb == null) return 0;
+                    if (ta == null) return 1;
+                    if (tb == null) return -1;
+                    return tb.compareTo(ta);
+                  });
+
+                  return ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (_, i) {
+                      final data = docs[i].data() as Map<String, dynamic>;
+                      final fromId = data['from'] as String? ?? '';
+                      final ts = data['timestamp'] as Timestamp?;
+                      return _LikeReceivedTile(
+                        fromUserId: fromId,
+                        currentUserId: currentUserId,
+                        timestamp: ts,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _pinkStart.withOpacity(0.12),
+                    _orangeEnd.withOpacity(0.08)
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.favorite_border_rounded,
+                  color: _pinkStart.withOpacity(0.5), size: 36),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Sin likes aún',
+              style: TextStyle(
+                color: _textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Cuando alguien te dé like,\nlo verás aquí primero.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _textSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Tile de un like recibido
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _LikeReceivedTile extends StatefulWidget {
+  final String fromUserId;
+  final String currentUserId;
+  final Timestamp? timestamp;
+
+  const _LikeReceivedTile({
+    required this.fromUserId,
+    required this.currentUserId,
+    required this.timestamp,
+  });
+
+  @override
+  State<_LikeReceivedTile> createState() => _LikeReceivedTileState();
+}
+
+class _LikeReceivedTileState extends State<_LikeReceivedTile> {
+  static const _card = Color(0xFF252525);
+  static const _pinkStart = Color(0xFFFF4D6D);
+  static const _orangeEnd = Color(0xFFFF8A00);
+  static const _textPrimary = Colors.white;
+  static const _textSecondary = Color(0xFFAAAAAA);
+
+  Map<String, dynamic>? _user;
+  bool _loading = true;
+  bool _alreadyLikedBack = false;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+    _checkLikeBack();
+  }
+
+  Future<void> _loadUser() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('usuario')
+          .doc(widget.fromUserId)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _user = doc.exists ? doc.data() : null;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _checkLikeBack() async {
+    final liked = await hasLiked(
+      fromUserId: widget.currentUserId,
+      toUserId: widget.fromUserId,
+    );
+    if (mounted) {
+      setState(() => _alreadyLikedBack = liked);
+    }
+  }
+
+  Future<void> _handleLikeBack() async {
+    if (_alreadyLikedBack || _sending) return;
+    setState(() => _sending = true);
+
+    final matchId = await sendLikeAndMaybeMatch(
+      fromUserId: widget.currentUserId,
+      toUserId: widget.fromUserId,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _alreadyLikedBack = true;
+      _sending = false;
+    });
+
+    if (matchId != null) {
+      // Debería pasar siempre aquí porque la otra persona ya me dio like
+      _showMatchDialog();
+    }
+  }
+
+  void _showMatchDialog() {
+    final nombre = _nombreCompleto();
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF1A0A10),
+                const Color(0xFF0D0408),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: _pinkStart.withOpacity(0.3),
+                blurRadius: 30,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_pinkStart, _orangeEnd],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                        color: _pinkStart.withOpacity(0.5), blurRadius: 20),
+                  ],
+                ),
+                child:
+                    const Icon(Icons.favorite, color: Colors.white, size: 36),
+              ),
+              const SizedBox(height: 16),
+              ShaderMask(
+                shaderCallback: (b) => const LinearGradient(
+                  colors: [_pinkStart, _orangeEnd],
+                ).createShader(b),
+                child: const Text(
+                  '¡Es un Match!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tú y $nombre se han\ngustado mutuamente',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'Ver en Matches',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openProfile() {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, a, b) =>
+            UserProfileScreen(userId: widget.fromUserId),
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+              parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  String _nombreCompleto() {
+    if (_user == null) return 'Usuario';
+    final n = _user!['nombre'] ?? '';
+    final a = _user!['apellido'] ?? '';
+    return '$n $a'.trim().isEmpty ? 'Usuario' : '$n $a'.trim();
+  }
+
+  String? _foto() {
+    if (_user == null) return null;
+    final f = _user!['foto_perfil'] as String?;
+    return (f != null && f.isNotEmpty) ? f : null;
+  }
+
+  String _formatTime(Timestamp? ts) {
+    if (ts == null) return '';
+    final now = DateTime.now();
+    final dt = ts.toDate().toLocal();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'ahora';
+    if (diff.inMinutes < 60) return 'hace ${diff.inMinutes}m';
+    if (diff.inHours < 24) return 'hace ${diff.inHours}h';
+    if (diff.inDays == 1) return 'ayer';
+    if (diff.inDays < 7) return 'hace ${diff.inDays}d';
+    return '${dt.day}/${dt.month}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(_pinkStart),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_user == null) return const SizedBox.shrink();
+
+    final nombre = _nombreCompleto();
+    final foto = _foto();
+    final edad = _user!['edad']?.toString().trim() ?? '';
+    final carrera = (_user!['carrera'] as String?)?.trim() ?? '';
+
+    return GestureDetector(
+      onTap: _openProfile,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: _card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [_pinkStart, _orangeEnd],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              padding: const EdgeInsets.all(2),
+              child: ClipOval(
+                child: foto != null
+                    ? Image.network(
+                        foto,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                      )
+                    : _placeholder(nombre),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Texto
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          nombre,
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (edad.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          edad,
+                          style: const TextStyle(
+                            color: _textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (carrera.isNotEmpty) ...[
+                        Flexible(
+                          child: Text(
+                            carrera,
+                            style: const TextStyle(
+                              color: _textSecondary,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text('·',
+                            style: TextStyle(
+                                color: _textSecondary, fontSize: 12)),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        _formatTime(widget.timestamp),
+                        style: const TextStyle(
+                          color: _pinkStart,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Botón like de vuelta
+            GestureDetector(
+              onTap: _alreadyLikedBack ? null : _handleLikeBack,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: _alreadyLikedBack
+                      ? const LinearGradient(
+                          colors: [_pinkStart, _orangeEnd],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: _alreadyLikedBack
+                      ? null
+                      : _pinkStart.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _alreadyLikedBack
+                        ? Colors.transparent
+                        : _pinkStart.withOpacity(0.3),
+                  ),
+                  boxShadow: _alreadyLikedBack
+                      ? [
+                          BoxShadow(
+                              color: _pinkStart.withOpacity(0.4),
+                              blurRadius: 10),
+                        ]
+                      : [],
+                ),
+                child: _sending
+                    ? const Center(
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation(_pinkStart),
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        _alreadyLikedBack
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: _alreadyLikedBack
+                            ? Colors.white
+                            : _pinkStart,
+                        size: 20,
+                      ),
+              ),
+            ),
           ],
         ),
       ),
@@ -2023,7 +3115,7 @@ class _SearchSheetState extends State<_SearchSheet> {
           nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
           style: const TextStyle(
             color: Colors.white54,
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: FontWeight.w700,
           ),
         ),

@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import 'home_screen.dart';
 import 'matches_screen.dart';
 import 'profile_screen.dart';
@@ -19,6 +22,9 @@ class _MainNavScreenState extends State<MainNavScreen> {
   static const _orangeEnd = Color(0xFFFF8A00);
   static const _textSecondary = Color(0xFFAAAAAA);
 
+  final String _currentUserId =
+      FirebaseAuth.instance.currentUser?.uid ?? '';
+
   final List<Widget> _screens = const [
     HomeScreen(),
     MatchesScreen(),
@@ -37,7 +43,40 @@ class _MainNavScreenState extends State<MainNavScreen> {
     );
   }
 
+  /// Cuenta cuántos matches del usuario tienen mensajes no leídos.
+  /// Un match tiene "unread" si:
+  ///   - lastMessageTime != null  (hay algún mensaje)
+  ///   - lastMessageSender != currentUserId  (no es mío)
+  ///   - lastSeen_{currentUserId} == null  ó  lastMessageTime > lastSeen_{uid}
+  int _countUnreadMatches(List<QueryDocumentSnapshot> docs) {
+    int count = 0;
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final lastMsgTime = data['lastMessageTime'] as Timestamp?;
+      final lastSender = data['lastMessageSender'] as String?;
+      final lastSeen =
+          data['lastSeen_$_currentUserId'] as Timestamp?;
+
+      if (lastMsgTime == null) continue;
+      if (lastSender == _currentUserId) continue;
+      if (lastSeen == null) {
+        count++;
+      } else if (lastMsgTime.compareTo(lastSeen) > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   Widget _buildBottomNav() {
+    // Stream de matches del usuario para calcular el badge en "Matches"
+    final matchesStream = _currentUserId.isEmpty
+        ? const Stream<QuerySnapshot>.empty()
+        : FirebaseFirestore.instance
+            .collection('matches')
+            .where('users', arrayContains: _currentUserId)
+            .snapshots();
+
     return Container(
       decoration: BoxDecoration(
         color: _surface,
@@ -56,23 +95,50 @@ class _MainNavScreenState extends State<MainNavScreen> {
         top: false,
         child: SizedBox(
           height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
-              _navItem(1, Icons.chat_bubble_rounded,
-                  Icons.chat_bubble_outline_rounded, 'Matches'),
-              _navItem(
-                  2, Icons.person_rounded, Icons.person_outline_rounded, 'Perfil'),
-            ],
+          child: StreamBuilder<QuerySnapshot>(
+            stream: matchesStream,
+            builder: (context, snapshot) {
+              final unreadCount = (snapshot.hasData)
+                  ? _countUnreadMatches(snapshot.data!.docs)
+                  : 0;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _navItem(
+                    index: 0,
+                    activeIcon: Icons.home_rounded,
+                    inactiveIcon: Icons.home_outlined,
+                    label: 'Inicio',
+                  ),
+                  _navItem(
+                    index: 1,
+                    activeIcon: Icons.chat_bubble_rounded,
+                    inactiveIcon: Icons.chat_bubble_outline_rounded,
+                    label: 'Matches',
+                    badgeCount: unreadCount,
+                  ),
+                  _navItem(
+                    index: 2,
+                    activeIcon: Icons.person_rounded,
+                    inactiveIcon: Icons.person_outline_rounded,
+                    label: 'Perfil',
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _navItem(
-      int index, IconData activeIcon, IconData inactiveIcon, String label) {
+  Widget _navItem({
+    required int index,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
+    required String label,
+    int badgeCount = 0,
+  }) {
     final isSelected = _selectedIndex == index;
 
     return GestureDetector(
@@ -83,24 +149,75 @@ class _MainNavScreenState extends State<MainNavScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? _pinkStart.withOpacity(0.12)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: isSelected
-                  ? ShaderMask(
-                      shaderCallback: (b) => const LinearGradient(
-                        colors: [_pinkStart, _orangeEnd],
-                      ).createShader(b),
-                      child: Icon(activeIcon,
-                          color: Colors.white, size: 26),
-                    )
-                  : Icon(inactiveIcon, color: _textSecondary, size: 24),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? _pinkStart.withOpacity(0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: isSelected
+                      ? ShaderMask(
+                          shaderCallback: (b) => const LinearGradient(
+                            colors: [_pinkStart, _orangeEnd],
+                          ).createShader(b),
+                          child: Icon(activeIcon,
+                              color: Colors.white, size: 26),
+                        )
+                      : Icon(inactiveIcon,
+                          color: _textSecondary, size: 24),
+                ),
+                // Badge
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: badgeCount > 9 ? 5 : 0,
+                        vertical: 2,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [_pinkStart, _orangeEnd],
+                        ),
+                        shape: badgeCount > 9
+                            ? BoxShape.rectangle
+                            : BoxShape.circle,
+                        borderRadius: badgeCount > 9
+                            ? BorderRadius.circular(9)
+                            : null,
+                        border: Border.all(color: _surface, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _pinkStart.withOpacity(0.6),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 2),
             AnimatedDefaultTextStyle(
