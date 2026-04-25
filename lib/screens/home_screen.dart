@@ -35,7 +35,12 @@ Future<String?> sendLikeAndMaybeMatch({
       final ids = [fromUserId, toUserId]..sort();
       final matchId = '${ids[0]}_${ids[1]}';
       await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
-        'users': [fromUserId, toUserId],
+        // FIX: guardamos `users` en orden estable (alfabético, igual que el
+        // matchId). Antes se guardaba [fromUserId, toUserId] y cada
+        // sobreescritura del documento (al re-escribirse en otros flujos)
+        // invertía el orden, haciendo que MatchesScreen confundiera quién
+        // era "el otro usuario" — los chats parecían cambiar de dueño.
+        'users': ids,
         'timestamp': FieldValue.serverTimestamp(),
         'lastMessage': null,
         'lastMessageTime': null,
@@ -65,6 +70,30 @@ Future<bool> hasLiked({
   } catch (_) {
     return false;
   }
+}
+
+/// Helper de migración. Llamar UNA VEZ con un usuario logueado para corregir
+/// los documentos existentes en `matches/` que tienen el campo `users`
+/// desordenado. Después de ejecutar, este método se puede eliminar.
+///
+/// Uso recomendado: añadir un botón temporal en alguna pantalla de admin
+/// y llamarlo. Una vez todos los matches están bien, borra esta función.
+Future<void> fixMatchesUsersOrder() async {
+  final snap = await FirebaseFirestore.instance.collection('matches').get();
+  int fixed = 0;
+  for (final doc in snap.docs) {
+    final data = doc.data();
+    final users = List<String>.from(data['users'] ?? []);
+    if (users.length == 2) {
+      final sorted = [...users]..sort();
+      if (sorted[0] != users[0] || sorted[1] != users[1]) {
+        await doc.reference.update({'users': sorted});
+        fixed++;
+        debugPrint('Fixed match ${doc.id}');
+      }
+    }
+  }
+  debugPrint('fixMatchesUsersOrder: $fixed documentos corregidos.');
 }
 
 class HomeScreen extends StatefulWidget {
@@ -232,22 +261,35 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _showMatchOverlay = false;
       _matchedProfile = null;
+      // FIX: reseteamos _lastMatchId al cerrar el overlay para evitar
+      // que un matchId viejo se quede colgado en el State si el usuario
+      // hace otro match sin navegar al chat.
+      _lastMatchId = null;
     });
   }
 
   void _navigateToChat() {
-    _closeMatchOverlay();
-    if (_lastMatchId == null || _matchedProfile == null) return;
+    // Capturamos los valores ANTES de cerrar el overlay (que los limpia).
+    final matchId = _lastMatchId;
+    final profile = _matchedProfile;
 
-    final nombre = _nombre(_matchedProfile!);
-    final foto = _foto(_matchedProfile!);
-    final otherId = _matchedProfile!['id'] as String;
+    _closeMatchOverlay();
+
+    if (matchId == null || profile == null) return;
+
+    final nombre = _nombre(profile);
+    final foto = _foto(profile);
+    final otherId = profile['id'] as String;
 
     Navigator.push(
       context,
       PageRouteBuilder(
+        // FIX: ValueKey amarrada al matchId. Asegura que Flutter nunca
+        // reutilice el State (controllers, focus, listeners) entre
+        // chats distintos.
         pageBuilder: (_, a, b) => ChatScreen(
-          matchId: _lastMatchId!,
+          key: ValueKey('chat_$matchId'),
+          matchId: matchId,
           otherUserId: otherId,
           otherUserName: nombre,
           otherUserPhoto: foto,
@@ -381,13 +423,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Ícono de notificaciones (campana) con badge en vivo de likes recibidos.
   Widget _buildNotificationsIcon() {
-    // Stream de likes dirigidos al usuario actual
     final likesStream = FirebaseFirestore.instance
         .collection('likes')
         .where('to', isEqualTo: _currentUserId)
         .snapshots();
 
-    // Stream del doc de usuario (para leer lastLikesSeen)
     final userDocStream = _currentUserId.isEmpty
         ? const Stream<DocumentSnapshot>.empty()
         : FirebaseFirestore.instance
@@ -496,7 +536,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Abre el modal de likes recibidos y marca todos como vistos.
   Future<void> _showLikesReceivedModal() async {
-    // Al abrir el modal, marcamos como vistos los likes (actualiza lastLikesSeen)
     if (_currentUserId.isNotEmpty) {
       FirebaseFirestore.instance
           .collection('usuario')
@@ -1442,7 +1481,6 @@ class _MatchOverlayState extends State<_MatchOverlay>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Corazón animado
                 AnimatedBuilder(
                   animation: _heartController,
                   builder: (_, __) => Transform.scale(
@@ -1484,7 +1522,6 @@ class _MatchOverlayState extends State<_MatchOverlay>
                   ),
                 ),
                 const SizedBox(height: 32),
-                // Título
                 AnimatedBuilder(
                   animation: _contentController,
                   builder: (_, __) => Transform.translate(
@@ -1523,7 +1560,6 @@ class _MatchOverlayState extends State<_MatchOverlay>
                   ),
                 ),
                 const SizedBox(height: 40),
-                // Avatares
                 AnimatedBuilder(
                   animation: _avatarController,
                   builder: (_, __) => Row(
@@ -1558,7 +1594,6 @@ class _MatchOverlayState extends State<_MatchOverlay>
                   ),
                 ),
                 const SizedBox(height: 44),
-                // Botones
                 AnimatedBuilder(
                   animation: _contentController,
                   builder: (_, __) => Opacity(
@@ -1792,7 +1827,6 @@ class _SearchSheet extends StatefulWidget {
 class _SearchSheetState extends State<_SearchSheet> {
   static const _surface = Color(0xFF1E1E1E);
   static const _inputFill = Color(0xFF252525);
-  static const _card = Color(0xFF252525);
   static const _pinkStart = Color(0xFFFF4D6D);
   static const _orangeEnd = Color(0xFFFF8A00);
   static const _textPrimary = Colors.white;
@@ -1857,17 +1891,6 @@ class _SearchSheetState extends State<_SearchSheet> {
     });
   }
 
-  String _nombreCompleto(Map<String, dynamic> u) {
-    final n = u['nombre'] ?? '';
-    final a = u['apellido'] ?? '';
-    return '$n $a'.trim().isEmpty ? 'Usuario' : '$n $a'.trim();
-  }
-
-  String? _foto(Map<String, dynamic> u) {
-    final f = u['foto_perfil'] as String?;
-    return (f != null && f.isNotEmpty) ? f : null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -1883,7 +1906,6 @@ class _SearchSheetState extends State<_SearchSheet> {
           child: Column(
             children: [
               const SizedBox(height: 12),
-              // Handle
               Container(
                 width: 40,
                 height: 4,
@@ -1893,8 +1915,6 @@ class _SearchSheetState extends State<_SearchSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -1929,8 +1949,6 @@ class _SearchSheetState extends State<_SearchSheet> {
                 ),
               ),
               const SizedBox(height: 14),
-
-              // Input de búsqueda
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -1970,8 +1988,6 @@ class _SearchSheetState extends State<_SearchSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Resultados
               Expanded(
                 child: _buildResults(scrollController),
               ),
@@ -2093,22 +2109,6 @@ class _SearchSheetState extends State<_SearchSheet> {
       },
     );
   }
-
-  Widget _placeholder(String nombre) {
-    return Container(
-      color: const Color(0xFF333333),
-      child: Center(
-        child: Text(
-          nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2134,7 +2134,6 @@ class _SearchResultTileState extends State<_SearchResultTile> {
   static const _card = Color(0xFF252525);
   static const _pinkStart = Color(0xFFFF4D6D);
   static const _orangeEnd = Color(0xFFFF8A00);
-  static const _matchGreen = Color(0xFF4CAF50);
   static const _textPrimary = Colors.white;
   static const _textSecondary = Color(0xFFAAAAAA);
 
@@ -2173,7 +2172,6 @@ class _SearchResultTileState extends State<_SearchResultTile> {
     });
 
     if (matchId != null) {
-      // ¡Match!
       _showMatchDialog();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -2346,7 +2344,6 @@ class _SearchResultTileState extends State<_SearchResultTile> {
         ),
         child: Row(
           children: [
-            // Avatar
             Container(
               width: 48,
               height: 48,
@@ -2370,7 +2367,6 @@ class _SearchResultTileState extends State<_SearchResultTile> {
               ),
             ),
             const SizedBox(width: 12),
-            // Texto
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2425,7 +2421,6 @@ class _SearchResultTileState extends State<_SearchResultTile> {
               ),
             ),
             const SizedBox(width: 8),
-            // Botón de like
             GestureDetector(
               onTap: _alreadyLiked ? null : _handleLike,
               child: AnimatedContainer(
@@ -2498,7 +2493,6 @@ class _LikesReceivedSheet extends StatelessWidget {
   const _LikesReceivedSheet({required this.currentUserId});
 
   static const _surface = Color(0xFF1E1E1E);
-  static const _card = Color(0xFF252525);
   static const _pinkStart = Color(0xFFFF4D6D);
   static const _orangeEnd = Color(0xFFFF8A00);
   static const _textPrimary = Colors.white;
@@ -2600,7 +2594,6 @@ class _LikesReceivedSheet extends StatelessWidget {
                     return _buildEmptyState();
                   }
 
-                  // Ordenar por timestamp descendente (más reciente primero)
                   final docs = [...snapshot.data!.docs];
                   docs.sort((a, b) {
                     final ta = (a.data() as Map<String, dynamic>)['timestamp']
@@ -2766,7 +2759,6 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
     });
 
     if (matchId != null) {
-      // Debería pasar siempre aquí porque la otra persona ya me dio like
       _showMatchDialog();
     }
   }
@@ -2958,7 +2950,6 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
         ),
         child: Row(
           children: [
-            // Avatar
             Container(
               width: 52,
               height: 52,
@@ -2982,7 +2973,6 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
               ),
             ),
             const SizedBox(width: 12),
-            // Texto
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3046,7 +3036,6 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
               ),
             ),
             const SizedBox(width: 8),
-            // Botón like de vuelta
             GestureDetector(
               onTap: _alreadyLikedBack ? null : _handleLikeBack,
               child: AnimatedContainer(

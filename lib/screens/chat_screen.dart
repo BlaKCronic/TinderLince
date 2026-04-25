@@ -110,14 +110,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         SetOptions(merge: true),
       );
 
+      // FIX: ordenamos `users` alfabéticamente para que el campo sea
+      // idéntico sin importar quién envía el mensaje. Antes se guardaba
+      // [yo, otro] y eso sobrescribía el orden cada vez, quedando
+      // inconsistente entre escrituras de distintos usuarios.
       final msgDocRef = FirebaseFirestore.instance
           .collection('mensajes')
           .doc(widget.matchId);
+      final sortedUsers = [_currentUserId, widget.otherUserId]..sort();
       batch.set(
           msgDocRef,
           {
             'mensaje': text,
-            'users': [_currentUserId, widget.otherUserId],
+            'users': sortedUsers,
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true));

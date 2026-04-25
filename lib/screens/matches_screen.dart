@@ -23,9 +23,6 @@ class _MatchesScreenState extends State<MatchesScreen>
   final String _currentUserId =
       FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  // Cache de datos de usuario para evitar múltiples lecturas
-  final Map<String, Map<String, dynamic>> _usersCache = {};
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,10 +68,6 @@ class _MatchesScreenState extends State<MatchesScreen>
     );
   }
 
-  // NOTA: Usamos el stream SIN orderBy y ordenamos del lado cliente.
-  // Esto evita requerir un índice compuesto en Firestore y funciona tanto
-  // para matches recientes (que tienen solo `timestamp`) como para los que
-  // ya tienen `lastMessageTime` tras el primer mensaje.
   Widget _buildMatchesList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -108,7 +101,10 @@ class _MatchesScreenState extends State<MatchesScreen>
           return _buildEmptyState();
         }
 
-        // Ordenamos client-side: lastMessageTime > timestamp de creación
+        // Solo necesitamos los matchIds (IDs de los documentos), ordenados
+        // por lastMessageTime / timestamp. Cada tile leerá los datos de su
+        // propio match por sí mismo. Esto evita CUALQUIER posibilidad de
+        // que un tile reciba datos del match equivocado.
         final docs = [...snapshot.data!.docs];
         docs.sort((a, b) {
           final da = a.data() as Map<String, dynamic>;
@@ -118,36 +114,26 @@ class _MatchesScreenState extends State<MatchesScreen>
           if (ta == null && tb == null) return 0;
           if (ta == null) return 1;
           if (tb == null) return -1;
-          return tb.compareTo(ta); // descendente (más reciente primero)
+          return tb.compareTo(ta);
         });
 
-        return _buildList(docs);
-      },
-    );
-  }
+        final matchIds = docs.map((d) => d.id).toList();
 
-  Widget _buildList(List<QueryDocumentSnapshot> docs) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: docs.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 4),
-      itemBuilder: (context, index) {
-        final matchData = docs[index].data() as Map<String, dynamic>;
-        final matchId = docs[index].id;
-        final List<dynamic> users = matchData['users'] ?? [];
-        final otherUserId = users.firstWhere(
-          (u) => u != _currentUserId,
-          orElse: () => '',
-        ) as String;
-
-        if (otherUserId.isEmpty) return const SizedBox.shrink();
-
-        return _MatchTile(
-          matchId: matchId,
-          otherUserId: otherUserId,
-          matchData: matchData,
-          currentUserId: _currentUserId,
-          usersCache: _usersCache,
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount: matchIds.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 4),
+          itemBuilder: (context, index) {
+            final matchId = matchIds[index];
+            // Cada tile es independiente: tiene su propio key y su propio
+            // stream amarrado al matchId. Imposible que se "rote" la info
+            // entre tiles al reordenar la lista.
+            return _MatchTile(
+              key: ValueKey(matchId),
+              matchId: matchId,
+              currentUserId: _currentUserId,
+            );
+          },
         );
       },
     );
@@ -227,79 +213,51 @@ class _MatchesScreenState extends State<MatchesScreen>
   }
 }
 
-// ── Tile individual de un match ────────────────────────────────────────────────
-class _MatchTile extends StatefulWidget {
+// ═════════════════════════════════════════════════════════════════════════════
+// Tile individual de un match — completamente autónomo
+//
+// Cada tile lee:
+//   - matches/{matchId}    → para lastMessage, lastMessageTime, etc.
+//   - usuario/{otherUid}   → para nombre y foto del otro usuario
+//
+// No recibe matchData ni usersCache por parámetro. Esto garantiza que
+// jamás puede mostrar datos de otro match.
+// ═════════════════════════════════════════════════════════════════════════════
+class _MatchTile extends StatelessWidget {
   final String matchId;
-  final String otherUserId;
-  final Map<String, dynamic> matchData;
   final String currentUserId;
-  final Map<String, Map<String, dynamic>> usersCache;
 
   const _MatchTile({
+    super.key,
     required this.matchId,
-    required this.otherUserId,
-    required this.matchData,
     required this.currentUserId,
-    required this.usersCache,
   });
 
-  @override
-  State<_MatchTile> createState() => _MatchTileState();
-}
-
-class _MatchTileState extends State<_MatchTile> {
   static const _surface = Color(0xFF1E1E1E);
   static const _pinkStart = Color(0xFFFF4D6D);
   static const _orangeEnd = Color(0xFFFF8A00);
   static const _textPrimary = Colors.white;
   static const _textSecondary = Color(0xFFAAAAAA);
 
-  Map<String, dynamic>? _otherUser;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUser();
+  /// Calcula el otro UID a partir del matchId (formato `uidA_uidB` con
+  /// uidA < uidB alfabéticamente). No depende del campo `users` del doc.
+  String _resolveOtherUserId() {
+    final parts = matchId.split('_');
+    if (parts.length != 2) return '';
+    if (parts[0] == currentUserId) return parts[1];
+    if (parts[1] == currentUserId) return parts[0];
+    return '';
   }
 
-  Future<void> _loadUser() async {
-    if (widget.usersCache.containsKey(widget.otherUserId)) {
-      setState(() {
-        _otherUser = widget.usersCache[widget.otherUserId];
-        _loading = false;
-      });
-      return;
-    }
-
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('usuario')
-          .doc(widget.otherUserId)
-          .get();
-
-      if (doc.exists && mounted) {
-        final data = doc.data()!;
-        widget.usersCache[widget.otherUserId] = data;
-        setState(() {
-          _otherUser = data;
-          _loading = false;
-        });
-      } else if (mounted) {
-        setState(() => _loading = false);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  String _nombre(Map<String, dynamic> u) {
+  String _nombre(Map<String, dynamic>? u) {
+    if (u == null) return 'Usuario';
     final n = u['nombre'] ?? '';
     final a = u['apellido'] ?? '';
     return '$n $a'.trim().isEmpty ? 'Usuario' : '$n $a'.trim();
   }
 
-  String? _foto(Map<String, dynamic> u) {
+  String? _foto(Map<String, dynamic>? u) {
+    if (u == null) return null;
     final f = u['foto_perfil'] as String?;
     return (f != null && f.isNotEmpty) ? f : null;
   }
@@ -321,58 +279,100 @@ class _MatchTileState extends State<_MatchTile> {
     }
   }
 
-  bool get _hasUnread {
+  bool _hasUnread(Map<String, dynamic> matchData) {
     final lastSeen =
-        widget.matchData['lastSeen_${widget.currentUserId}'] as Timestamp?;
-    final lastMsgTime =
-        widget.matchData['lastMessageTime'] as Timestamp?;
-    final lastSender =
-        widget.matchData['lastMessageSender'] as String?;
+        matchData['lastSeen_$currentUserId'] as Timestamp?;
+    final lastMsgTime = matchData['lastMessageTime'] as Timestamp?;
+    final lastSender = matchData['lastMessageSender'] as String?;
 
     if (lastMsgTime == null) return false;
-    if (lastSender == widget.currentUserId) return false;
+    if (lastSender == currentUserId) return false;
     if (lastSeen == null) return true;
     return lastMsgTime.compareTo(lastSeen) > 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return Container(
-        height: 76,
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(_pinkStart),
-            ),
+    final otherUserId = _resolveOtherUserId();
+    if (otherUserId.isEmpty) return const SizedBox.shrink();
+
+    // Stream del match (lastMessage, timestamps, etc.)
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('matches')
+          .doc(matchId)
+          .snapshots(),
+      builder: (context, matchSnap) {
+        final matchData = matchSnap.hasData && matchSnap.data!.exists
+            ? matchSnap.data!.data() as Map<String, dynamic>
+            : <String, dynamic>{};
+
+        // Stream del usuario (nombre y foto)
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('usuario')
+              .doc(otherUserId)
+              .snapshots(),
+          builder: (context, userSnap) {
+            if (!userSnap.hasData) {
+              return _loadingTile();
+            }
+
+            final userData = userSnap.data!.exists
+                ? userSnap.data!.data() as Map<String, dynamic>
+                : null;
+
+            return _buildTileContent(
+              context: context,
+              matchData: matchData,
+              userData: userData,
+              otherUserId: otherUserId,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _loadingTile() {
+    return Container(
+      height: 76,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(_pinkStart),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    if (_otherUser == null) return const SizedBox.shrink();
+  Widget _buildTileContent({
+    required BuildContext context,
+    required Map<String, dynamic> matchData,
+    required Map<String, dynamic>? userData,
+    required String otherUserId,
+  }) {
+    final nombre = _nombre(userData);
+    final foto = _foto(userData);
 
-    final nombre = _nombre(_otherUser!);
-    final foto = _foto(_otherUser!);
+    final raw = matchData['lastMessage'] as String?;
+    final lastMessage =
+        (raw == null || raw.isEmpty) ? 'Di hola 👋' : raw;
 
-    // Si no hay lastMessage, mostramos un CTA amistoso.
-    final raw = widget.matchData['lastMessage'] as String?;
-    final lastMessage = (raw == null || raw.isEmpty) ? 'Di hola 👋' : raw;
-
-    // Preferimos lastMessageTime; si no existe, usamos timestamp de creación
-    final ts = (widget.matchData['lastMessageTime'] ??
-        widget.matchData['timestamp']) as Timestamp?;
+    final ts = (matchData['lastMessageTime'] ??
+        matchData['timestamp']) as Timestamp?;
     final lastTime = _formatTime(ts);
 
-    final unread = _hasUnread;
+    final unread = _hasUnread(matchData);
 
     return GestureDetector(
       onTap: () {
@@ -380,18 +380,18 @@ class _MatchTileState extends State<_MatchTile> {
           context,
           PageRouteBuilder(
             pageBuilder: (_, a, b) => ChatScreen(
-              matchId: widget.matchId,
-              otherUserId: widget.otherUserId,
+              key: ValueKey('chat_$matchId'),
+              matchId: matchId,
+              otherUserId: otherUserId,
               otherUserName: nombre,
               otherUserPhoto: foto,
             ),
-            transitionsBuilder: (_, anim, __, child) =>
-                SlideTransition(
+            transitionsBuilder: (_, anim, __, child) => SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(1, 0),
                 end: Offset.zero,
-              ).animate(
-                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+              ).animate(CurvedAnimation(
+                  parent: anim, curve: Curves.easeOutCubic)),
               child: child,
             ),
             transitionDuration: const Duration(milliseconds: 350),
@@ -464,9 +464,8 @@ class _MatchTileState extends State<_MatchTile> {
                     style: TextStyle(
                       color: unread ? Colors.white70 : _textSecondary,
                       fontSize: 13,
-                      fontWeight: unread
-                          ? FontWeight.w500
-                          : FontWeight.w400,
+                      fontWeight:
+                          unread ? FontWeight.w500 : FontWeight.w400,
                       fontStyle: raw == null || raw.isEmpty
                           ? FontStyle.italic
                           : FontStyle.normal,
@@ -487,7 +486,8 @@ class _MatchTileState extends State<_MatchTile> {
                   style: TextStyle(
                     color: unread ? _pinkStart : _textSecondary,
                     fontSize: 11,
-                    fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight:
+                        unread ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
                 if (unread) ...[
