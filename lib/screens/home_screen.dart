@@ -1110,12 +1110,21 @@ class _HomeScreenState extends State<HomeScreen>
     if (user == null) return;
 
     try {
+      // Obtenemos los IDs a los que ya se les dio like
+      final likesSnap = await FirebaseFirestore.instance
+          .collection('likes')
+          .where('from', isEqualTo: user.uid)
+          .get();
+      final alreadyLikedIds =
+          likesSnap.docs.map((d) => d.data()['to'] as String).toSet();
+
       final querySnapshot = await FirebaseFirestore.instance
           .collection('usuario')
           .where(FieldPath.documentId, isNotEqualTo: user.uid)
           .get();
 
       List<Map<String, dynamic>> allUsers = querySnapshot.docs
+          .where((doc) => !alreadyLikedIds.contains(doc.id))  // ← filtro nuevo
           .map((doc) => {...doc.data(), 'id': doc.id})
           .toList();
 
