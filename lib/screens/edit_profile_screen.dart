@@ -189,7 +189,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (_, a, b) => const MainNavScreen(),
-            transitionsBuilder: (_, anim, __, child) =>
+            transitionsBuilder: (_, anim, _, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 400),
           ),

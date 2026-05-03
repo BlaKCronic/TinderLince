@@ -111,7 +111,7 @@ class _RegisterScreenState extends State<RegisterScreen>
               },
               isNewUser: true,
             ),
-            transitionsBuilder: (_, anim, __, child) =>
+            transitionsBuilder: (_, anim, _, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 400),
           ),

@@ -122,7 +122,7 @@ class _MatchesScreenState extends State<MatchesScreen>
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           itemCount: matchIds.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 4),
+          separatorBuilder: (_, _) => const SizedBox(height: 4),
           itemBuilder: (context, index) {
             final matchId = matchIds[index];
             // Cada tile es independiente: tiene su propio key y su propio
@@ -386,7 +386,7 @@ class _MatchTile extends StatelessWidget {
               otherUserName: nombre,
               otherUserPhoto: foto,
             ),
-            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+            transitionsBuilder: (_, anim, _, child) => SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(1, 0),
                 end: Offset.zero,
@@ -437,7 +437,7 @@ class _MatchTile extends StatelessWidget {
                     ? Image.network(
                         foto,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                        errorBuilder: (_, _, _) => _placeholder(nombre),
                       )
                     : _placeholder(nombre),
               ),

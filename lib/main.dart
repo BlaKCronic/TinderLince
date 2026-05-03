@@ -31,7 +31,12 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lince',
+      title: 'Lince App',
+      theme: LinceThemes.lightTheme, // Tema claro
+      darkTheme: LinceThemes.darkTheme, // Tema oscuro
+      themeMode: ThemeMode.system, // Cambia automáticamente según el celular
+      home: const AuthGate(),
+      /*title: 'Lince',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -42,7 +47,7 @@ class MainApp extends StatelessWidget {
         fontFamily: 'InterTight',
         scaffoldBackgroundColor: const Color(0xFF121212),
       ),
-      home: const AuthGate(),
+      home: const AuthGate(),*/
     );
   }
 }
@@ -72,4 +77,80 @@ class AuthGate extends StatelessWidget {
       },
     );
   }
+}
+
+class LinceThemes {
+  // Colores base que se mantienen en ambos (Identidad de marca)
+  static const Color pinkStart = Color(0xFFFF4D6D);
+  static const Color orangeEnd = Color(0xFFFF8A00);
+
+  // TEMA OSCURO (El original)
+  static final darkTheme = ThemeData(
+    colorScheme: ColorScheme.dark(
+      primary: pinkStart,
+      secondary: orangeEnd,
+    ),
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: const Color(0xFF121212),
+    cardColor: const Color(0xFF1E1E1E),
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: Colors.white),
+      bodyMedium: TextStyle(color: Color(0xFFAAAAAA)),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      fillColor: Color(0xFF252525),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: Colors.white10) ,
+      ),
+    ),
+    buttonTheme: ButtonThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      buttonColor: pinkStart,
+      textTheme: ButtonTextTheme.primary,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF333333), // Gris oscuro para el botón de cerrar
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+  );
+
+  // TEMA CLARO (El nuevo)
+  static final lightTheme = ThemeData(
+    colorScheme: ColorScheme.light(
+      primary: pinkStart,
+      secondary: orangeEnd,
+    ),
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: const Color(0xFFF5F5F5), // Blanco hueso
+    cardColor: Colors.white,
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: Color(0xFF121212)), // Texto casi negro
+      bodyMedium: TextStyle(color: Color(0xFF666666)), // Gris suave
+    ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.white,
+      iconTheme: IconThemeData(color: Color(0xFF121212)),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      fillColor: Color(0xFFF5F5F5),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: Colors.black12),
+      ),
+    ),
+    buttonTheme: ButtonThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      buttonColor: pinkStart,
+      textTheme: ButtonTextTheme.primary,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFE0E0E0), // Gris claro para el botón de cerrar
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+  );
 }

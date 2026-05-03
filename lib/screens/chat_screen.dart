@@ -283,7 +283,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       PageRouteBuilder(
         pageBuilder: (_, a, b) =>
             UserProfileScreen(userId: widget.otherUserId),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        transitionsBuilder: (_, anim, _, child) => SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
@@ -394,7 +394,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ? Image.network(
                         widget.otherUserPhoto!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _avatarPlaceholder(),
+                        errorBuilder: (_, _, _) => _avatarPlaceholder(),
                       )
                     : _avatarPlaceholder(),
               ),
@@ -890,7 +890,7 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                         ? Image.network(
                             foto,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
+                            errorBuilder: (_, _, _) =>
                                 _nameFallback(nombre),
                           )
                         : _nameFallback(nombre),

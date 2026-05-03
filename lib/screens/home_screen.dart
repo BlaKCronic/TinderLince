@@ -294,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen>
           otherUserName: nombre,
           otherUserPhoto: foto,
         ),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        transitionsBuilder: (_, anim, _, child) => SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
@@ -346,6 +346,7 @@ class _HomeScreenState extends State<HomeScreen>
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    
     return Scaffold(
       backgroundColor: _bg,
       body: Stack(
@@ -701,7 +702,7 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                           ),
-                    errorBuilder: (_, __, ___) => _photoPlaceholder(),
+                    errorBuilder: (_, _, _) => _photoPlaceholder(),
                   )
                 : _photoPlaceholder(),
             Positioned.fill(
@@ -1483,7 +1484,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
               children: [
                 AnimatedBuilder(
                   animation: _heartController,
-                  builder: (_, __) => Transform.scale(
+                  builder: (_, _) => Transform.scale(
                     scale: _heartScale.value,
                     child: Transform.rotate(
                       angle: _heartRotation.value,
@@ -1524,7 +1525,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                 const SizedBox(height: 32),
                 AnimatedBuilder(
                   animation: _contentController,
-                  builder: (_, __) => Transform.translate(
+                  builder: (_, _) => Transform.translate(
                     offset: Offset(0, _textSlide.value),
                     child: Opacity(
                       opacity: _contentOpacity.value,
@@ -1562,7 +1563,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                 const SizedBox(height: 40),
                 AnimatedBuilder(
                   animation: _avatarController,
-                  builder: (_, __) => Row(
+                  builder: (_, _) => Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Transform.translate(
@@ -1596,7 +1597,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                 const SizedBox(height: 44),
                 AnimatedBuilder(
                   animation: _contentController,
-                  builder: (_, __) => Opacity(
+                  builder: (_, _) => Opacity(
                     opacity: _contentOpacity.value,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1716,7 +1717,7 @@ class _MatchAvatar extends StatelessWidget {
       child: ClipOval(
         child: photoUrl != null && photoUrl!.isNotEmpty
             ? Image.network(photoUrl!, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder())
+                errorBuilder: (_, _, _) => _placeholder())
             : _placeholder(),
       ),
     );
@@ -1825,12 +1826,8 @@ class _SearchSheet extends StatefulWidget {
 }
 
 class _SearchSheetState extends State<_SearchSheet> {
-  static const _surface = Color(0xFF1E1E1E);
-  static const _inputFill = Color(0xFF252525);
   static const _pinkStart = Color(0xFFFF4D6D);
   static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   final TextEditingController _searchCtrl = TextEditingController();
   final String _currentUserId =
@@ -1892,25 +1889,44 @@ class _SearchSheetState extends State<_SearchSheet> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) {
-        return Padding(
+Widget build(BuildContext context) {
+  // 1. Definimos la paleta dinámica según el brillo del tema
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Estas variables locales ahora son "punteros" al tema global
+    final surface = theme.cardColor; 
+    final textPrimary = theme.textTheme.bodyLarge?.color;
+    final textSecondary = theme.textTheme.bodyMedium?.color;
+    final inputFill = theme.inputDecorationTheme.fillColor;
+    final borderColor = theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? Colors.transparent;
+    final closeBtnBg = theme.elevatedButtonTheme.style?.backgroundColor?.resolve({}) ?? Colors.white.withOpacity(0.05);
+
+  return DraggableScrollableSheet(
+    initialChildSize: 0.9,
+    minChildSize: 0.5,
+    maxChildSize: 0.95,
+    expand: false,
+    builder: (context, scrollController) {
+      return Container(
+        // Aplicamos el color de fondo dinámico al contenedor principal
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
           child: Column(
             children: [
               const SizedBox(height: 12),
+              // El indicador (handle) superior
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white12,
+                  color: isDark ? Colors.white10 : Colors.black12,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1938,11 +1954,11 @@ class _SearchSheetState extends State<_SearchSheet> {
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
+                          color: closeBtnBg, // Color de fondo dinámico
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded,
-                            color: _textSecondary, size: 18),
+                        child: Icon(Icons.close_rounded,
+                            color: textSecondary, size: 18), // Color dinámico
                       ),
                     ),
                   ],
@@ -1953,27 +1969,27 @@ class _SearchSheetState extends State<_SearchSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: _inputFill,
+                    color: inputFill, // Color dinámico
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: Colors.white.withOpacity(0.06)),
+                    border: Border.all(color: borderColor), // Borde dinámico
                   ),
                   child: TextField(
                     controller: _searchCtrl,
                     autofocus: true,
-                    style: const TextStyle(
-                        color: _textPrimary, fontSize: 15),
+                    style: TextStyle(
+                        color: textPrimary, fontSize: 15), // Color dinámico
                     onChanged: _onQueryChanged,
                     decoration: InputDecoration(
                       hintText: 'Nombre, apellido o carrera...',
-                      hintStyle: const TextStyle(
-                          color: Color(0xFF555555), fontSize: 14),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: _textSecondary, size: 20),
+                      hintStyle: TextStyle(
+                          color: isDark ? const Color(0xFF555555) : const Color(0xFFB0B0B0), 
+                          fontSize: 14),
+                      prefixIcon: Icon(Icons.search_rounded,
+                          color: textSecondary, size: 20), // Color dinámico
                       suffixIcon: _query.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.close_rounded,
-                                  color: _textSecondary, size: 18),
+                              icon: Icon(Icons.close_rounded,
+                                  color: textSecondary, size: 18),
                               onPressed: () {
                                 _searchCtrl.clear();
                                 _onQueryChanged('');
@@ -1993,12 +2009,15 @@ class _SearchSheetState extends State<_SearchSheet> {
               ),
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
+
 
   Widget _buildResults(ScrollController scrollController) {
+
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -2029,15 +2048,19 @@ class _SearchSheetState extends State<_SearchSheet> {
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 6),
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (_, i) => _buildTile(_results[i]),
     );
   }
 
   Widget _buildHint(
+    
       {required IconData icon,
       required String title,
       required String sub}) {
+        final theme = Theme.of(context);
+        const _textSecondary = theme.textTheme.bodyMedium?.color ?? Color(0xFFAAAAAA);
+        const _textPrimary = theme.textTheme.bodyLarge?.color ?? Colors.white;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -2062,7 +2085,7 @@ class _SearchSheetState extends State<_SearchSheet> {
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: _textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -2095,7 +2118,7 @@ class _SearchSheetState extends State<_SearchSheet> {
           PageRouteBuilder(
             pageBuilder: (_, a, b) =>
                 UserProfileScreen(userId: user['id'] as String),
-            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+            transitionsBuilder: (_, anim, _, child) => SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(1, 0),
                 end: Offset.zero,
@@ -2361,7 +2384,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                     ? Image.network(
                         foto,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                        errorBuilder: (_, _, _) => _placeholder(nombre),
                       )
                     : _placeholder(nombre),
               ),
@@ -2610,7 +2633,7 @@ class _LikesReceivedSheet extends StatelessWidget {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                     itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (_, i) {
                       final data = docs[i].data() as Map<String, dynamic>;
                       final fromId = data['from'] as String? ?? '';
@@ -2871,7 +2894,7 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
       PageRouteBuilder(
         pageBuilder: (_, a, b) =>
             UserProfileScreen(userId: widget.fromUserId),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        transitionsBuilder: (_, anim, _, child) => SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
@@ -2967,7 +2990,7 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                     ? Image.network(
                         foto,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                        errorBuilder: (_, _, _) => _placeholder(nombre),
                       )
                     : _placeholder(nombre),
               ),
@@ -3112,3 +3135,17 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
     );
   }
 }
+
+/*
+// 1. Definimos la paleta dinámica según el brillo del tema
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Estas variables locales ahora son "punteros" al tema global
+    final surface = theme.cardColor; 
+    final textPrimary = theme.textTheme.bodyLarge?.color;
+    final textSecondary = theme.textTheme.bodyMedium?.color;
+    final inputFill = theme.inputDecorationTheme.fillColor;
+    final borderColor = theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? Colors.transparent;
+    final closeBtnBg = theme.elevatedButtonTheme.style?.backgroundColor?.resolve({}) ?? Colors.white.withOpacity(0.05);
+*/

@@ -335,7 +335,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                           ),
                         ),
                       ),
-                errorBuilder: (_, __, ___) => _defaultAvatar(),
+                errorBuilder: (_, _, _) => _defaultAvatar(),
               )
             : _defaultAvatar(),
       ),
@@ -462,7 +462,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _interesesNombres.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
@@ -534,7 +534,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   Widget _buildTabContent() {
     return AnimatedBuilder(
       animation: _tabController,
-      builder: (_, __) => _tabController.index == 0
+      builder: (_, _) => _tabController.index == 0
           ? _buildFotosGrid()
           : _buildEmptyTab(
               icon: Icons.videocam_outlined,
@@ -581,7 +581,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         child: Image.network(
           url,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
+          errorBuilder: (_, _, _) => Container(
             color: _card,
             child: const Icon(Icons.broken_image_outlined,
                 color: Color(0xFF444444), size: 28),
