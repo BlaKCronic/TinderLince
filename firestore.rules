@@ -15,6 +15,14 @@ service cloud.firestore {
       }
     }
 
+    match /bloqueos/{bloqueoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.from;
+      allow delete: if request.auth != null
+                    && resource.data.from == request.auth.uid;
+    }
+
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

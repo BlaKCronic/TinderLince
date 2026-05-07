@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../services/block_service.dart';
 import 'chat_screen.dart';
 import 'user_profile_screen.dart';
 
@@ -35,11 +37,6 @@ Future<String?> sendLikeAndMaybeMatch({
       final ids = [fromUserId, toUserId]..sort();
       final matchId = '${ids[0]}_${ids[1]}';
       await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
-        // FIX: guardamos `users` en orden estable (alfabético, igual que el
-        // matchId). Antes se guardaba [fromUserId, toUserId] y cada
-        // sobreescritura del documento (al re-escribirse en otros flujos)
-        // invertía el orden, haciendo que MatchesScreen confundiera quién
-        // era "el otro usuario" — los chats parecían cambiar de dueño.
         'users': ids,
         'timestamp': FieldValue.serverTimestamp(),
         'lastMessage': null,
@@ -72,12 +69,7 @@ Future<bool> hasLiked({
   }
 }
 
-/// Helper de migración. Llamar UNA VEZ con un usuario logueado para corregir
-/// los documentos existentes en `matches/` que tienen el campo `users`
-/// desordenado. Después de ejecutar, este método se puede eliminar.
-///
-/// Uso recomendado: añadir un botón temporal en alguna pantalla de admin
-/// y llamarlo. Una vez todos los matches están bien, borra esta función.
+/// Helper de migración para corregir `users` desordenados en matches.
 Future<void> fixMatchesUsersOrder() async {
   final snap = await FirebaseFirestore.instance.collection('matches').get();
   int fixed = 0;
@@ -232,7 +224,6 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // ── Like + detección de match ───────────────────────────────────────────────
   Future<void> _saveLikeAndCheckMatch() async {
     if (_currentUserId.isEmpty || _currentIndex >= _profiles.length) return;
     final profile = _profiles[_currentIndex];
@@ -261,15 +252,11 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _showMatchOverlay = false;
       _matchedProfile = null;
-      // FIX: reseteamos _lastMatchId al cerrar el overlay para evitar
-      // que un matchId viejo se quede colgado en el State si el usuario
-      // hace otro match sin navegar al chat.
       _lastMatchId = null;
     });
   }
 
   void _navigateToChat() {
-    // Capturamos los valores ANTES de cerrar el overlay (que los limpia).
     final matchId = _lastMatchId;
     final profile = _matchedProfile;
 
@@ -284,9 +271,6 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.push(
       context,
       PageRouteBuilder(
-        // FIX: ValueKey amarrada al matchId. Asegura que Flutter nunca
-        // reutilice el State (controllers, focus, listeners) entre
-        // chats distintos.
         pageBuilder: (_, a, b) => ChatScreen(
           key: ValueKey('chat_$matchId'),
           matchId: matchId,
@@ -421,7 +405,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Ícono de notificaciones (campana) con badge en vivo de likes recibidos.
   Widget _buildNotificationsIcon() {
     final likesStream = FirebaseFirestore.instance
         .collection('likes')
@@ -534,7 +517,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Abre el modal de likes recibidos y marca todos como vistos.
   Future<void> _showLikesReceivedModal() async {
     if (_currentUserId.isNotEmpty) {
       FirebaseFirestore.instance
@@ -1110,7 +1092,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (user == null) return;
 
     try {
-      // Obtenemos los IDs a los que ya se les dio like
+      // IDs ya likeados (para no remostrarlos)
       final likesSnap = await FirebaseFirestore.instance
           .collection('likes')
           .where('from', isEqualTo: user.uid)
@@ -1118,13 +1100,19 @@ class _HomeScreenState extends State<HomeScreen>
       final alreadyLikedIds =
           likesSnap.docs.map((d) => d.data()['to'] as String).toSet();
 
+      // IDs de relaciones de bloqueo (filtra en ambas direcciones)
+      final blockedIds =
+          await BlockService.getAllBlockedRelations(user.uid);
+
       final querySnapshot = await FirebaseFirestore.instance
           .collection('usuario')
           .where(FieldPath.documentId, isNotEqualTo: user.uid)
           .get();
 
       List<Map<String, dynamic>> allUsers = querySnapshot.docs
-          .where((doc) => !alreadyLikedIds.contains(doc.id))  // ← filtro nuevo
+          .where((doc) =>
+              !alreadyLikedIds.contains(doc.id) &&
+              !blockedIds.contains(doc.id))
           .map((doc) => {...doc.data(), 'id': doc.id})
           .toList();
 
@@ -1322,7 +1310,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Modal de búsqueda de perfiles ──────────────────────────────────────────
   void _showSearchModal() {
     showModalBottomSheet(
       context: context,
@@ -1821,7 +1808,7 @@ class ProfileFilters {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Bottom sheet de búsqueda de perfiles
+// Bottom sheet de búsqueda de perfiles (con soporte para bloqueados)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _SearchSheet extends StatefulWidget {
@@ -1847,13 +1834,14 @@ class _SearchSheetState extends State<_SearchSheet> {
 
   List<Map<String, dynamic>> _allUsers = [];
   List<Map<String, dynamic>> _results = [];
+  Set<String> _iBlockedIds = {};
   bool _loading = true;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _loadUsers();
+    _loadData();
   }
 
   @override
@@ -1862,16 +1850,29 @@ class _SearchSheetState extends State<_SearchSheet> {
     super.dispose();
   }
 
-  Future<void> _loadUsers() async {
+  Future<void> _loadData() async {
     try {
-      final snap =
-          await FirebaseFirestore.instance.collection('usuario').get();
+      final results = await Future.wait([
+        FirebaseFirestore.instance.collection('usuario').get(),
+        BlockService.getUsersIBlocked(_currentUserId),
+        BlockService.getUsersWhoBlockedMe(_currentUserId),
+      ]);
+
+      final usersSnap = results[0] as QuerySnapshot;
+      final iBlocked = results[1] as Set<String>;
+      final blockedMe = results[2] as Set<String>;
+
       if (!mounted) return;
       setState(() {
-        _allUsers = snap.docs
+        _allUsers = usersSnap.docs
             .where((d) => d.id != _currentUserId)
-            .map((d) => {'id': d.id, ...d.data()})
+            .where((d) => !blockedMe.contains(d.id)) // me bloquearon → fuera
+            .map((d) => {
+                  'id': d.id,
+                  ...(d.data() as Map<String, dynamic>),
+                })
             .toList();
+        _iBlockedIds = iBlocked;
         _loading = false;
       });
     } catch (_) {
@@ -1898,6 +1899,11 @@ class _SearchSheetState extends State<_SearchSheet> {
             carrera.contains(q);
       }).toList();
     });
+  }
+
+  /// Lo llama el tile cuando se desbloquea para refrescar el badge.
+  void _onUnblocked(String userId) {
+    setState(() => _iBlockedIds.remove(userId));
   }
 
   @override
@@ -2043,10 +2049,11 @@ class _SearchSheetState extends State<_SearchSheet> {
     );
   }
 
-  Widget _buildHint(
-      {required IconData icon,
-      required String title,
-      required String sub}) {
+  Widget _buildHint({
+    required IconData icon,
+    required String title,
+    required String sub,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -2094,16 +2101,21 @@ class _SearchSheetState extends State<_SearchSheet> {
   }
 
   Widget _buildTile(Map<String, dynamic> user) {
+    final userId = user['id'] as String;
+    final isBlocked = _iBlockedIds.contains(userId);
     return _SearchResultTile(
+      key: ValueKey('search_$userId'),
       user: user,
       currentUserId: _currentUserId,
+      isBlocked: isBlocked,
+      onUnblocked: () => _onUnblocked(userId),
       onOpenProfile: () {
         Navigator.pop(context);
         Navigator.push(
           context,
           PageRouteBuilder(
             pageBuilder: (_, a, b) =>
-                UserProfileScreen(userId: user['id'] as String),
+                UserProfileScreen(userId: userId),
             transitionsBuilder: (_, anim, __, child) => SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(1, 0),
@@ -2121,18 +2133,23 @@ class _SearchSheetState extends State<_SearchSheet> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Tile individual de resultado de búsqueda (con botón de like)
+// Tile individual de resultado de búsqueda (con soporte de bloqueo)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _SearchResultTile extends StatefulWidget {
   final Map<String, dynamic> user;
   final String currentUserId;
+  final bool isBlocked;
   final VoidCallback onOpenProfile;
+  final VoidCallback onUnblocked;
 
   const _SearchResultTile({
+    super.key,
     required this.user,
     required this.currentUserId,
+    required this.isBlocked,
     required this.onOpenProfile,
+    required this.onUnblocked,
   });
 
   @override
@@ -2148,11 +2165,12 @@ class _SearchResultTileState extends State<_SearchResultTile> {
 
   bool _alreadyLiked = false;
   bool _sendingLike = false;
+  bool _unblocking = false;
 
   @override
   void initState() {
     super.initState();
-    _checkLikeStatus();
+    if (!widget.isBlocked) _checkLikeStatus();
   }
 
   Future<void> _checkLikeStatus() async {
@@ -2188,6 +2206,38 @@ class _SearchResultTileState extends State<_SearchResultTile> {
         backgroundColor: _pinkStart,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+      ));
+    }
+  }
+
+  Future<void> _handleUnblock() async {
+    if (_unblocking) return;
+    setState(() => _unblocking = true);
+
+    final ok = await BlockService.unblockUser(
+      blockerId: widget.currentUserId,
+      blockedId: widget.user['id'] as String,
+    );
+
+    if (!mounted) return;
+    setState(() => _unblocking = false);
+
+    if (ok) {
+      widget.onUnblocked();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Has desbloqueado a ${_nombreCompleto()}'),
+        backgroundColor: const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('No se pudo desbloquear. Intenta de nuevo.'),
+        backgroundColor: _pinkStart,
+        behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),
       ));
@@ -2338,8 +2388,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
   Widget build(BuildContext context) {
     final nombre = _nombreCompleto();
     final foto = _foto();
-    final carrera =
-        (widget.user['carrera'] as String?)?.trim() ?? '';
+    final carrera = (widget.user['carrera'] as String?)?.trim() ?? '';
     final edad = widget.user['edad']?.toString().trim() ?? '';
 
     return GestureDetector(
@@ -2349,31 +2398,71 @@ class _SearchResultTileState extends State<_SearchResultTile> {
         decoration: BoxDecoration(
           color: _card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(
+            color: widget.isBlocked
+                ? _pinkStart.withOpacity(0.3)
+                : Colors.white.withOpacity(0.05),
+          ),
         ),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            Stack(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [_pinkStart, _orangeEnd],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(2),
+                  child: ClipOval(
+                    child: widget.isBlocked
+                        ? ColorFiltered(
+                            colorFilter: const ColorFilter.matrix(<double>[
+                              0.2126, 0.7152, 0.0722, 0, 0,
+                              0.2126, 0.7152, 0.0722, 0, 0,
+                              0.2126, 0.7152, 0.0722, 0, 0,
+                              0, 0, 0, 1, 0,
+                            ]),
+                            child: foto != null
+                                ? Image.network(
+                                    foto,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _placeholder(nombre),
+                                  )
+                                : _placeholder(nombre),
+                          )
+                        : (foto != null
+                            ? Image.network(
+                                foto,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _placeholder(nombre),
+                              )
+                            : _placeholder(nombre)),
+                  ),
                 ),
-              ),
-              padding: const EdgeInsets.all(2),
-              child: ClipOval(
-                child: foto != null
-                    ? Image.network(
-                        foto,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(nombre),
-                      )
-                    : _placeholder(nombre),
-              ),
+                if (widget.isBlocked)
+                  Positioned.fill(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.block_rounded,
+                            color: Colors.white, size: 16),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -2406,7 +2495,36 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                       ],
                     ],
                   ),
-                  if (carrera.isNotEmpty) ...[
+                  if (widget.isBlocked) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _pinkStart.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: _pinkStart.withOpacity(0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.block_rounded,
+                              color: _pinkStart, size: 11),
+                          SizedBox(width: 3),
+                          Text(
+                            'BLOQUEADO',
+                            style: TextStyle(
+                              color: _pinkStart,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (carrera.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Row(
                       children: [
@@ -2430,61 +2548,94 @@ class _SearchResultTileState extends State<_SearchResultTile> {
               ),
             ),
             const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _alreadyLiked ? null : _handleLike,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  gradient: _alreadyLiked
-                      ? const LinearGradient(
-                          colors: [_pinkStart, _orangeEnd],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color: _alreadyLiked
-                      ? null
-                      : _pinkStart.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _alreadyLiked
-                        ? Colors.transparent
-                        : _pinkStart.withOpacity(0.3),
+            if (widget.isBlocked)
+              GestureDetector(
+                onTap: _unblocking ? null : _handleUnblock,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _pinkStart.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: _pinkStart.withOpacity(0.4)),
                   ),
-                  boxShadow: _alreadyLiked
-                      ? [
-                          BoxShadow(
-                            color: _pinkStart.withOpacity(0.4),
-                            blurRadius: 10,
-                          ),
-                        ]
-                      : [],
-                ),
-                child: _sendingLike
-                    ? const Center(
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
+                  child: _unblocking
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor:
                                 AlwaysStoppedAnimation(_pinkStart),
                           ),
+                        )
+                      : const Text(
+                          'Desbloquear',
+                          style: TextStyle(
+                            color: _pinkStart,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      )
-                    : Icon(
-                        _alreadyLiked
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        color: _alreadyLiked
-                            ? Colors.white
-                            : _pinkStart,
-                        size: 20,
-                      ),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap: _alreadyLiked ? null : _handleLike,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: _alreadyLiked
+                        ? const LinearGradient(
+                            colors: [_pinkStart, _orangeEnd],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: _alreadyLiked
+                        ? null
+                        : _pinkStart.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _alreadyLiked
+                          ? Colors.transparent
+                          : _pinkStart.withOpacity(0.3),
+                    ),
+                    boxShadow: _alreadyLiked
+                        ? [
+                            BoxShadow(
+                              color: _pinkStart.withOpacity(0.4),
+                              blurRadius: 10,
+                            ),
+                          ]
+                        : [],
+                  ),
+                  child: _sendingLike
+                      ? const Center(
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation(_pinkStart),
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          _alreadyLiked
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: _alreadyLiked
+                              ? Colors.white
+                              : _pinkStart,
+                          size: 20,
+                        ),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -2603,31 +2754,45 @@ class _LikesReceivedSheet extends StatelessWidget {
                     return _buildEmptyState();
                   }
 
-                  final docs = [...snapshot.data!.docs];
-                  docs.sort((a, b) {
-                    final ta = (a.data() as Map<String, dynamic>)['timestamp']
-                        as Timestamp?;
-                    final tb = (b.data() as Map<String, dynamic>)['timestamp']
-                        as Timestamp?;
-                    if (ta == null && tb == null) return 0;
-                    if (ta == null) return 1;
-                    if (tb == null) return -1;
-                    return tb.compareTo(ta);
-                  });
+                  // Filtramos likes de usuarios bloqueados (en cualquier dirección).
+                  return FutureBuilder<Set<String>>(
+                    future: BlockService.getAllBlockedRelations(currentUserId),
+                    builder: (context, blockSnap) {
+                      final blockedIds = blockSnap.data ?? <String>{};
+                      final docs = snapshot.data!.docs.where((d) {
+                        final data = d.data() as Map<String, dynamic>;
+                        final from = data['from'] as String? ?? '';
+                        return !blockedIds.contains(from);
+                      }).toList();
 
-                  return ListView.separated(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                    itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (_, i) {
-                      final data = docs[i].data() as Map<String, dynamic>;
-                      final fromId = data['from'] as String? ?? '';
-                      final ts = data['timestamp'] as Timestamp?;
-                      return _LikeReceivedTile(
-                        fromUserId: fromId,
-                        currentUserId: currentUserId,
-                        timestamp: ts,
+                      if (docs.isEmpty) return _buildEmptyState();
+
+                      docs.sort((a, b) {
+                        final ta = (a.data() as Map<String, dynamic>)['timestamp']
+                            as Timestamp?;
+                        final tb = (b.data() as Map<String, dynamic>)['timestamp']
+                            as Timestamp?;
+                        if (ta == null && tb == null) return 0;
+                        if (ta == null) return 1;
+                        if (tb == null) return -1;
+                        return tb.compareTo(ta);
+                      });
+
+                      return ListView.separated(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 6),
+                        itemBuilder: (_, i) {
+                          final data = docs[i].data() as Map<String, dynamic>;
+                          final fromId = data['from'] as String? ?? '';
+                          final ts = data['timestamp'] as Timestamp?;
+                          return _LikeReceivedTile(
+                            fromUserId: fromId,
+                            currentUserId: currentUserId,
+                            timestamp: ts,
+                          );
+                        },
                       );
                     },
                   );
