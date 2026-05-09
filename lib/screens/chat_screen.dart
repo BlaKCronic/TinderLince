@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/block_service.dart';
 import 'user_profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -54,10 +55,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _markMessagesAsRead();
-    // NOTA: antes había listeners que llamaban setState en cada tecla, lo que
-    // repintaba toda la pantalla (incluyendo la lista de mensajes). Ahora el
-    // botón de enviar y el borde del input se reconstruyen localmente con
-    // ListenableBuilder, sin tocar el resto de la UI.
   }
 
   @override
@@ -110,10 +107,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         SetOptions(merge: true),
       );
 
-      // FIX: ordenamos `users` alfabéticamente para que el campo sea
-      // idéntico sin importar quién envía el mensaje. Antes se guardaba
-      // [yo, otro] y eso sobrescribía el orden cada vez, quedando
-      // inconsistente entre escrituras de distintos usuarios.
       final msgDocRef = FirebaseFirestore.instance
           .collection('mensajes')
           .doc(widget.matchId);
@@ -197,6 +190,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   onTap: () {
                     Navigator.pop(ctx);
                     _showUserDetails();
+                  },
+                ),
+                _optionTile(
+                  icon: Icons.block_rounded,
+                  label: 'Bloquear',
+                  subtitle: 'No volverán a verse ni chatear',
+                  isDestructive: true,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showBlockConfirmation();
                   },
                 ),
                 _optionTile(
@@ -329,19 +332,175 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         reportadoNombre: widget.otherUserName,
         matchId: widget.matchId,
         currentUserId: _currentUserId,
-        onReported: () {
+        onReported: ({required bool bloqueado}) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text(
-                'Reporte enviado. Gracias por ayudar a mantener la comunidad segura.'),
+            content: Text(bloqueado
+                ? 'Reporte enviado y usuario bloqueado.'
+                : 'Reporte enviado. Gracias por ayudar a mantener la comunidad segura.'),
             backgroundColor: _matchGreen,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12)),
           ));
+          // Si bloqueó, salimos del chat (el match ya no existe).
+          if (bloqueado && Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
         },
       ),
     );
+  }
+
+  // ── Confirmación y ejecución del bloqueo ───────────────────────────────────
+  void _showBlockConfirmation() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: _pinkStart.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.block_rounded,
+                    color: _pinkStart, size: 30),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '¿Bloquear a ${widget.otherUserName}?',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Se eliminará tu match y la conversación. Ya no podrán verse ni enviarse mensajes. Podrás desbloquearlo más tarde desde la búsqueda.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF252525),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.08)),
+                        ),
+                        child: const Center(
+                          child: Text('Cancelar',
+                              style: TextStyle(
+                                  color: _textSecondary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _executeBlock();
+                      },
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [_pinkStart, _orangeEnd]),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _pinkStart.withOpacity(0.35),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text('Bloquear',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _executeBlock() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(_pinkStart),
+        ),
+      ),
+    );
+
+    final ok = await BlockService.blockUser(
+      blockerId: _currentUserId,
+      blockedId: widget.otherUserId,
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // cierra loader
+
+    if (ok) {
+      Navigator.pop(context); // sale del chat
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Has bloqueado a ${widget.otherUserName}'),
+        backgroundColor: _matchGreen,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('No se pudo bloquear. Intenta de nuevo.'),
+        backgroundColor: _pinkStart,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -372,7 +531,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         onPressed: () => Navigator.pop(context),
       ),
       title: GestureDetector(
-        // Tap sobre el avatar/nombre también abre el perfil
         onTap: _openUserProfile,
         child: Row(
           children: [
@@ -593,7 +751,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // ── Campo de texto ───────────────────────────────────────────
-          // Solo el borde se repinta cuando cambia el foco, no la pantalla entera.
           Expanded(
             child: ListenableBuilder(
               listenable: _focusNode,
@@ -646,7 +803,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 10),
           // ── Botón enviar ─────────────────────────────────────────────
-          // Solo este botón se repinta en cada tecla, no la lista de mensajes.
           ListenableBuilder(
             listenable: _textController,
             builder: (context, _) {
@@ -851,7 +1007,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
             bottom: MediaQuery.of(context).padding.bottom + 20,
           ),
           children: [
-            // Handle
             Center(
               child: Container(
                 width: 40,
@@ -863,8 +1018,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Avatar + Nombre
             Row(
               children: [
                 Container(
@@ -930,8 +1083,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
               ],
             ),
             const SizedBox(height: 24),
-
-            // Datos básicos
             if (edad.isNotEmpty)
               _detailRow(
                 icon: Icons.cake_outlined,
@@ -950,10 +1101,7 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                 label: 'Carrera',
                 value: carrera,
               ),
-
             const SizedBox(height: 8),
-
-            // Biografía
             if (bio.isNotEmpty) ...[
               _sectionTitle('Biografía', Icons.article_outlined),
               const SizedBox(height: 8),
@@ -976,8 +1124,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
               ),
               const SizedBox(height: 20),
             ],
-
-            // Intereses
             if (interesNombres.isNotEmpty) ...[
               _sectionTitle('Intereses', Icons.favorite_border_rounded),
               const SizedBox(height: 10),
@@ -992,8 +1138,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
             ] else ...[
               const SizedBox(height: 12),
             ],
-
-            // Botón ir al perfil
             _gradientButton(
               label: 'Ver perfil completo',
               icon: Icons.arrow_forward_rounded,
@@ -1151,7 +1295,7 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// BOTTOM SHEET: Reportar usuario
+// BOTTOM SHEET: Reportar usuario (con opción de bloquear)
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _ReportSheet extends StatefulWidget {
@@ -1159,7 +1303,7 @@ class _ReportSheet extends StatefulWidget {
   final String reportadoNombre;
   final String matchId;
   final String currentUserId;
-  final VoidCallback onReported;
+  final void Function({required bool bloqueado}) onReported;
 
   const _ReportSheet({
     required this.reportadoUserId,
@@ -1192,6 +1336,7 @@ class _ReportSheetState extends State<_ReportSheet> {
   String? _motivoSeleccionado;
   final TextEditingController _descripcionCtrl = TextEditingController();
   bool _enviando = false;
+  bool _bloquearTambien = false;
 
   @override
   void dispose() {
@@ -1204,7 +1349,6 @@ class _ReportSheetState extends State<_ReportSheet> {
     setState(() => _enviando = true);
 
     try {
-      // Buscamos la etiqueta legible del motivo seleccionado
       final motivoLabel = _motivos.firstWhere(
         (m) => m['key'] == _motivoSeleccionado,
         orElse: () => {'label': _motivoSeleccionado!},
@@ -1218,11 +1362,20 @@ class _ReportSheetState extends State<_ReportSheet> {
         'descripcion': _descripcionCtrl.text.trim(),
         'fecha': FieldValue.serverTimestamp(),
         'estado': 'pendiente',
+        'incluye_bloqueo': _bloquearTambien,
       });
+
+      // Si el usuario marcó "bloquear también", lo bloqueamos.
+      if (_bloquearTambien) {
+        await BlockService.blockUser(
+          blockerId: widget.currentUserId,
+          blockedId: widget.reportadoUserId,
+        );
+      }
 
       if (!mounted) return;
       Navigator.pop(context);
-      widget.onReported();
+      widget.onReported(bloqueado: _bloquearTambien);
     } catch (e) {
       if (!mounted) return;
       setState(() => _enviando = false);
@@ -1252,7 +1405,6 @@ class _ReportSheetState extends State<_ReportSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle
             Center(
               child: Container(
                 width: 40,
@@ -1264,7 +1416,6 @@ class _ReportSheetState extends State<_ReportSheet> {
               ),
             ),
             const SizedBox(height: 20),
-
             Row(
               children: [
                 Container(
@@ -1301,7 +1452,6 @@ class _ReportSheetState extends State<_ReportSheet> {
               ],
             ),
             const SizedBox(height: 22),
-
             const Text(
               'Motivo del reporte',
               style: TextStyle(
@@ -1311,8 +1461,6 @@ class _ReportSheetState extends State<_ReportSheet> {
               ),
             ),
             const SizedBox(height: 10),
-
-            // Lista de motivos
             ..._motivos.map((m) {
               final key = m['key'] as String;
               final selected = _motivoSeleccionado == key;
@@ -1369,7 +1517,6 @@ class _ReportSheetState extends State<_ReportSheet> {
               );
             }),
             const SizedBox(height: 14),
-
             const Text(
               'Descripción (opcional)',
               style: TextStyle(
@@ -1379,7 +1526,6 @@ class _ReportSheetState extends State<_ReportSheet> {
               ),
             ),
             const SizedBox(height: 8),
-
             TextField(
               controller: _descripcionCtrl,
               maxLines: 3,
@@ -1408,6 +1554,83 @@ class _ReportSheetState extends State<_ReportSheet> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide:
                       const BorderSide(color: _pinkStart, width: 1.5),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Toggle: bloquear también después de reportar ──────────
+            GestureDetector(
+              onTap: () =>
+                  setState(() => _bloquearTambien = !_bloquearTambien),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _bloquearTambien
+                      ? _pinkStart.withOpacity(0.08)
+                      : _card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _bloquearTambien
+                        ? _pinkStart.withOpacity(0.4)
+                        : Colors.white.withOpacity(0.06),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        gradient: _bloquearTambien
+                            ? const LinearGradient(
+                                colors: [_pinkStart, _orangeEnd])
+                            : null,
+                        color: _bloquearTambien
+                            ? null
+                            : Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: _bloquearTambien
+                              ? Colors.transparent
+                              : const Color(0xFF444444),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: _bloquearTambien
+                          ? const Icon(Icons.check_rounded,
+                              size: 14, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Bloquear también a este usuario',
+                            style: TextStyle(
+                              color: _bloquearTambien
+                                  ? _textPrimary
+                                  : const Color(0xFFDDDDDD),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Se eliminará el match y la conversación.',
+                            style: TextStyle(
+                                color: _textSecondary, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1485,7 +1708,9 @@ class _ReportSheetState extends State<_ReportSheet> {
                                 ),
                               )
                             : Text(
-                                'Enviar reporte',
+                                _bloquearTambien
+                                    ? 'Reportar y bloquear'
+                                    : 'Enviar reporte',
                                 style: TextStyle(
                                   color: _motivoSeleccionado == null
                                       ? const Color(0xFF555555)
