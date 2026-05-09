@@ -119,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoading = true;
   int _currentIndex = 0;
 
-  ProfileFilters _currentFilters = ProfileFilters();
+  final ProfileFilters _currentFilters = ProfileFilters();
 
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
@@ -2067,9 +2067,9 @@ Widget build(BuildContext context) {
       {required IconData icon,
       required String title,
       required String sub}) {
-        final theme = Theme.of(context);
-        const _textSecondary = theme.textTheme.bodyMedium?.color ?? Color(0xFFAAAAAA);
-        const _textPrimary = theme.textTheme.bodyLarge?.color ?? Colors.white;
+        final colors = Theme.of(context).colorScheme;
+        final textSecondary = colors.onSurfaceVariant;
+        final textPrimary = colors.onSurface;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -2095,7 +2095,7 @@ Widget build(BuildContext context) {
             Text(
               title,
               style: TextStyle(
-                color: _textPrimary,
+                color: textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -2104,8 +2104,8 @@ Widget build(BuildContext context) {
             Text(
               sub,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _textSecondary,
+              style: TextStyle(
+                color: textSecondary,
                 fontSize: 13,
                 height: 1.5,
               ),

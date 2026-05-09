@@ -31,12 +31,16 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      
+      /* primer intento de tema dinámico, pero no funciona bien con el sistema del celular*/
       title: 'Lince App',
       theme: LinceThemes.lightTheme, // Tema claro
       darkTheme: LinceThemes.darkTheme, // Tema oscuro
       themeMode: ThemeMode.system, // Cambia automáticamente según el celular
       home: const AuthGate(),
-      /*title: 'Lince',
+      
+      /* tema fijo, sin cambios dinámicos hardcodeado al oscuro
+      title: 'Lince',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -153,4 +157,15 @@ class LinceThemes {
       ),
     ),
   );
+}
+
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.dark; // Estado inicial
+
+  ThemeMode get themeMode => _themeMode;
+
+  void toggleTheme() {
+    _themeMode = (_themeMode == ThemeMode.light) ? ThemeMode.dark : ThemeMode.light;
+    notifyListeners(); // Notifica a toda la app para que se repinte
+  }
 }
