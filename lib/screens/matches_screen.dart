@@ -12,13 +12,6 @@ class MatchesScreen extends StatefulWidget {
 
 class _MatchesScreenState extends State<MatchesScreen>
     with SingleTickerProviderStateMixin {
-  // ── Paleta ─────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   final String _currentUserId =
       FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -26,7 +19,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,8 +39,8 @@ class _MatchesScreenState extends State<MatchesScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ShaderMask(
-            shaderCallback: (b) => const LinearGradient(
-              colors: [_pinkStart, _orangeEnd],
+            shaderCallback: (b) => LinearGradient(
+              colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
             ).createShader(b),
             child: const Text(
               'Matches',
@@ -59,9 +52,9 @@ class _MatchesScreenState extends State<MatchesScreen>
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Tus conexiones',
-            style: TextStyle(color: _textSecondary, fontSize: 13),
+            style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13),
           ),
         ],
       ),
@@ -76,9 +69,9 @@ class _MatchesScreenState extends State<MatchesScreen>
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
+          return Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(_pinkStart),
+              valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
               strokeWidth: 2,
             ),
           );
@@ -91,7 +84,7 @@ class _MatchesScreenState extends State<MatchesScreen>
               child: Text(
                 'Error cargando matches:\n${snapshot.error}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: _textSecondary, fontSize: 13),
+                style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13),
               ),
             ),
           );
@@ -122,7 +115,7 @@ class _MatchesScreenState extends State<MatchesScreen>
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           itemCount: matchIds.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 4),
+          separatorBuilder: (_, _) => const SizedBox(height: 4),
           itemBuilder: (context, index) {
             final matchId = matchIds[index];
             // Cada tile es independiente: tiene su propio key y su propio
@@ -152,30 +145,30 @@ class _MatchesScreenState extends State<MatchesScreen>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _pinkStart.withOpacity(0.12),
-                    _orangeEnd.withOpacity(0.08)
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.08)
                   ],
                 ),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.favorite_border_rounded,
-                  color: _pinkStart.withOpacity(0.5), size: 44),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), size: 44),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Sin matches aún',
               style: TextStyle(
-                color: _textPrimary,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Cuando alguien te dé like de vuelta,\naparecerá aquí para que puedan chatear.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: _textSecondary,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
                 fontSize: 14,
                 height: 1.6,
               ),
@@ -185,22 +178,22 @@ class _MatchesScreenState extends State<MatchesScreen>
               padding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                 ),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: _pinkStart.withOpacity(0.3),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     blurRadius: 14,
                     offset: const Offset(0, 5),
                   ),
                 ],
               ),
-              child: const Text(
+              child: Text(
                 '❤ Sigue explorando',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
                 ),
@@ -232,12 +225,6 @@ class _MatchTile extends StatelessWidget {
     required this.matchId,
     required this.currentUserId,
   });
-
-  static const _surface = Color(0xFF1E1E1E);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   /// Calcula el otro UID a partir del matchId (formato `uidA_uidB` con
   /// uidA < uidB alfabéticamente). No depende del campo `users` del doc.
@@ -315,7 +302,7 @@ class _MatchTile extends StatelessWidget {
               .snapshots(),
           builder: (context, userSnap) {
             if (!userSnap.hasData) {
-              return _loadingTile();
+              return _loadingTile(context);
             }
 
             final userData = userSnap.data!.exists
@@ -334,21 +321,21 @@ class _MatchTile extends StatelessWidget {
     );
   }
 
-  Widget _loadingTile() {
+  Widget _loadingTile( BuildContext context) {
     return Container(
       height: 76,
       margin: const EdgeInsets.symmetric(vertical: 2),
       decoration: BoxDecoration(
-        color: _surface,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Center(
+      child: Center(
         child: SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation(_pinkStart),
+            valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
           ),
         ),
       ),
@@ -386,7 +373,7 @@ class _MatchTile extends StatelessWidget {
               otherUserName: nombre,
               otherUserPhoto: foto,
             ),
-            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+            transitionsBuilder: (_, anim, _, child) => SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(1, 0),
                 end: Offset.zero,
@@ -401,14 +388,14 @@ class _MatchTile extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         margin: const EdgeInsets.symmetric(vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: unread ? _pinkStart.withOpacity(0.06) : _surface,
+          color: unread ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.06) : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: unread
-                ? _pinkStart.withOpacity(0.2)
-                : Colors.white.withOpacity(0.05),
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.05),
           ),
         ),
         child: Row(
@@ -419,14 +406,14 @@ class _MatchTile extends StatelessWidget {
               height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _pinkStart.withOpacity(unread ? 0.4 : 0.2),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: unread ? 0.4 : 0.2),
                     blurRadius: unread ? 12 : 6,
                   ),
                 ],
@@ -437,9 +424,9 @@ class _MatchTile extends StatelessWidget {
                     ? Image.network(
                         foto,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                        errorBuilder: (_, _, _) => _placeholder(nombre, context),
                       )
-                    : _placeholder(nombre),
+                    : _placeholder(nombre, context),
               ),
             ),
             const SizedBox(width: 14),
@@ -451,7 +438,7 @@ class _MatchTile extends StatelessWidget {
                   Text(
                     nombre,
                     style: TextStyle(
-                      color: _textPrimary,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                       fontSize: 15,
                       fontWeight:
                           unread ? FontWeight.w700 : FontWeight.w600,
@@ -462,7 +449,7 @@ class _MatchTile extends StatelessWidget {
                   Text(
                     lastMessage,
                     style: TextStyle(
-                      color: unread ? Colors.white70 : _textSecondary,
+                      color: unread ? Theme.of(context).textTheme.bodyMedium?.color : Colors.white70,
                       fontSize: 13,
                       fontWeight:
                           unread ? FontWeight.w500 : FontWeight.w400,
@@ -484,7 +471,7 @@ class _MatchTile extends StatelessWidget {
                 Text(
                   lastTime,
                   style: TextStyle(
-                    color: unread ? _pinkStart : _textSecondary,
+                    color: unread ? Theme.of(context).colorScheme.primary : Theme.of(context).textTheme.bodyMedium?.color,
                     fontSize: 11,
                     fontWeight:
                         unread ? FontWeight.w600 : FontWeight.w400,
@@ -495,9 +482,9 @@ class _MatchTile extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [_pinkStart, _orangeEnd],
+                        colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                       ),
                       shape: BoxShape.circle,
                     ),
@@ -511,14 +498,14 @@ class _MatchTile extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(String nombre) {
+  Widget _placeholder(String nombre, BuildContext context) {
     return Container(
       color: const Color(0xFF333333),
       child: Center(
         child: Text(
           nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
-          style: const TextStyle(
-            color: Colors.white54,
+          style: TextStyle(
+            color: Theme.of(context).textTheme.bodyLarge?.color,
             fontSize: 22,
             fontWeight: FontWeight.w700,
           ),

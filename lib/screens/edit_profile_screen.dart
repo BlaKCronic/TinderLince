@@ -47,15 +47,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   List<_Interes> _catalogoIntereses = [];
   Set<String> _interesesSeleccionados = {};
 
-  // ── Paleta ─────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _inputFill = Color(0xFF252525);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
-
   static const _generos = [
     {'valor': 'hombre', 'label': 'Hombre', 'emoji': '👨'},
     {'valor': 'mujer', 'label': 'Mujer', 'emoji': '👩'},
@@ -189,7 +180,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (_, a, b) => const MainNavScreen(),
-            transitionsBuilder: (_, anim, __, child) =>
+            transitionsBuilder: (_, anim, _, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 400),
           ),
@@ -202,7 +193,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error al guardar: $e'),
-          backgroundColor: _pinkStart,
+          backgroundColor: Theme.of(context).colorScheme.primary,
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -224,7 +215,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
       body: Stack(
         children: [
@@ -266,7 +257,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // ── AppBar ─────────────────────────────────────────────────────────────────
   AppBar _buildAppBar() {
     return AppBar(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       elevation: 0,
       automaticallyImplyLeading: false,
       leading: widget.isNewUser
@@ -295,30 +286,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_pinkStart.withOpacity(0.15), _orangeEnd.withOpacity(0.10)],
+          colors: [Theme.of(context).colorScheme.primary.withValues(alpha: 0.15), Theme.of(context).colorScheme.secondary.withValues(alpha: 0.10)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _pinkStart.withOpacity(0.25)),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
           const Text('👋', style: TextStyle(fontSize: 26)),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '¡Bienvenido a Lince!',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                       fontWeight: FontWeight.w700,
                       fontSize: 15),
                 ),
                 SizedBox(height: 2),
                 Text(
                   'Cuéntanos un poco sobre ti para encontrar tu mejor match.',
-                  style: TextStyle(color: _textSecondary, fontSize: 12),
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12),
                 ),
               ],
             ),
@@ -338,14 +329,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [_pinkStart, _orangeEnd],
+              gradient: LinearGradient(
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _pinkStart.withOpacity(0.4),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                   blurRadius: 20,
                   spreadRadius: 2,
                 ),
@@ -358,7 +349,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty
                       ? Image.network(_currentImageUrl!, fit: BoxFit.cover)
                       : Container(
-                          color: _inputFill,
+                          color: Theme.of(context).inputDecorationTheme.fillColor,
                           child: const Icon(Icons.person_rounded,
                               size: 60, color: Color(0xFF444444)),
                         )),
@@ -374,11 +365,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 height: 36,
                 decoration: BoxDecoration(
                   gradient:
-                      const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+                      LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary  ]),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.3), blurRadius: 8)
+                        color: Colors.black.withValues(alpha: 0.3), blurRadius: 8)
                   ],
                 ),
                 child: const Icon(Icons.camera_alt_rounded,
@@ -404,8 +395,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(
-                  color: _textSecondary,
+              style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.3)),
@@ -413,11 +404,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           TextFormField(
             controller: controller,
             maxLines: maxLines,
-            style: const TextStyle(color: _textPrimary, fontSize: 15),
+            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 15),
             decoration: InputDecoration(
-              prefixIcon: Icon(icon, color: _textSecondary, size: 20),
+              prefixIcon: Icon(icon, color: Theme.of(context).textTheme.bodyMedium?.color, size: 20),
               filled: true,
-              fillColor: _inputFill,
+              fillColor: Theme.of(context).inputDecorationTheme.fillColor,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(
@@ -428,14 +419,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   borderSide: const BorderSide(color: Color(0xFF2E2E2E))),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
               errorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _pinkStart)),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary)),
               focusedErrorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
-              errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
+              errorStyle: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12),
             ),
             validator: (v) =>
                 v == null || v.trim().isEmpty ? 'Campo obligatorio' : null,
@@ -452,9 +443,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Edad',
+          Text('Edad',
               style: TextStyle(
-                  color: _textSecondary,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.3)),
@@ -466,15 +457,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(2),
             ],
-            style: const TextStyle(color: _textPrimary, fontSize: 15),
+            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 15),
             decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.cake_outlined,
-                  color: _textSecondary, size: 20),
+              prefixIcon: Icon(Icons.cake_outlined,
+                  color: Theme.of(context).textTheme.bodyMedium?.color, size: 20),
               hintText: 'Ej. 21',
               hintStyle:
                   const TextStyle(color: Color(0xFF555555), fontSize: 15),
               filled: true,
-              fillColor: _inputFill,
+              fillColor: Theme.of(context).inputDecorationTheme.fillColor,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: OutlineInputBorder(
@@ -482,17 +473,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF2E2E2E))),
+                  borderSide: BorderSide(color: Color(0xFF2E2E2E))),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
               errorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _pinkStart)),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary)),
               focusedErrorBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
-              errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
+              errorStyle: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12),
             ),
             validator: (v) {
               if (v == null || v.trim().isEmpty) return 'Campo obligatorio';
@@ -516,13 +507,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Row(
           children: [
             ShaderMask(
-              shaderCallback: (b) => const LinearGradient(
-                colors: [_pinkStart, _orangeEnd],
+              shaderCallback: (b) => LinearGradient(
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
               ).createShader(b),
-              child: const Text(
+              child: Text(
                 'GÉNERO',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.8,
@@ -531,8 +522,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             if (_generoSeleccionado == null) ...[
               const SizedBox(width: 8),
-              const Text('*',
-                  style: TextStyle(color: _pinkStart, fontSize: 14)),
+              Text('*',
+                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 14)),
             ],
           ],
         ),
@@ -551,10 +542,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   gradient: seleccionado
-                      ? const LinearGradient(
-                          colors: [_pinkStart, _orangeEnd])
+                      ? LinearGradient(
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary])
                       : null,
-                  color: seleccionado ? null : _inputFill,
+                  color: seleccionado ? null : Theme.of(context).inputDecorationTheme.fillColor,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
                     color: seleccionado
@@ -564,7 +555,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   boxShadow: seleccionado
                       ? [
                           BoxShadow(
-                            color: _pinkStart.withOpacity(0.3),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           )
@@ -581,7 +572,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       g['label']!,
                       style: TextStyle(
                         color:
-                            seleccionado ? Colors.white : _textSecondary,
+                            seleccionado ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color,
                         fontSize: 13,
                         fontWeight: seleccionado
                             ? FontWeight.w600
@@ -611,8 +602,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Row(
           children: [
             ShaderMask(
-              shaderCallback: (b) => const LinearGradient(
-                colors: [_pinkStart, _orangeEnd],
+              shaderCallback: (b) => LinearGradient(
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
               ).createShader(b),
               child: const Text(
                 'INTERESES',
@@ -627,22 +618,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(width: 8),
             Text(
               '(${_interesesSeleccionados.length} seleccionados)',
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
+              style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12),
             ),
           ],
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Selecciona tus hobbies y gustos para encontrar personas afines.',
-          style: TextStyle(color: _textSecondary, fontSize: 12),
+          style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12),
         ),
         const SizedBox(height: 16),
         if (_loadingIntereses)
-          const Center(
+          Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(_pinkStart),
+                valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                 strokeWidth: 2,
               ),
             ),
@@ -651,12 +642,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _surface,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Text(
+            child: Text(
               'No hay intereses disponibles por el momento.',
-              style: TextStyle(color: _textSecondary, fontSize: 13),
+              style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13),
             ),
           )
         else
@@ -689,12 +680,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           Row(
             children: [
-              Icon(icono, color: _pinkStart, size: 16),
+              Icon(icono, color: Theme.of(context).colorScheme.primary, size: 16),
               const SizedBox(width: 6),
               Text(
                 categoria,
-                style: const TextStyle(
-                  color: _textPrimary,
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -724,10 +715,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     gradient: seleccionado
-                        ? const LinearGradient(
-                            colors: [_pinkStart, _orangeEnd])
+                        ? LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary])
                         : null,
-                    color: seleccionado ? null : _inputFill,
+                    color: seleccionado ? null : Theme.of(context).inputDecorationTheme.fillColor,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: seleccionado
@@ -737,7 +728,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     boxShadow: seleccionado
                         ? [
                             BoxShadow(
-                              color: _pinkStart.withOpacity(0.3),
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             )
@@ -757,7 +748,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         style: TextStyle(
                           color: seleccionado
                               ? Colors.white
-                              : _textSecondary,
+                              : Theme.of(context).textTheme.bodyMedium?.color,
                           fontSize: 13,
                           fontWeight: seleccionado
                               ? FontWeight.w600
@@ -782,11 +773,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       height: 54,
       decoration: BoxDecoration(
         gradient:
-            const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+            LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _pinkStart.withOpacity(0.35),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -817,23 +808,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // ── Overlay de carga ───────────────────────────────────────────────────────
   Widget _buildLoadingOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.85),
+      color: Colors.black.withValues(alpha: 0.85),
       child: Center(
         child: Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: _surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Column(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(_pinkStart),
+                valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
               ),
               SizedBox(height: 18),
               Text('Guardando cambios...',
-                  style: TextStyle(color: _textSecondary, fontSize: 14)),
+                  style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 14)),
             ],
           ),
         ),

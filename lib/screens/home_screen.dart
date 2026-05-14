@@ -96,22 +96,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  // ── Paleta ─────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _matchGreen = Color(0xFF4CAF50);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
+  with SingleTickerProviderStateMixin {    
 
   List<Map<String, dynamic>> _profiles = [];
   Map<String, String> _catalogoIntereses = {};
   bool _isLoading = true;
   int _currentIndex = 0;
 
-  ProfileFilters _currentFilters = ProfileFilters();
+  final ProfileFilters _currentFilters = ProfileFilters();
 
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
@@ -278,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen>
           otherUserName: nombre,
           otherUserPhoto: foto,
         ),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        transitionsBuilder: (_, anim, _, child) => SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
@@ -330,8 +322,9 @@ class _HomeScreenState extends State<HomeScreen>
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           SafeArea(
@@ -362,8 +355,8 @@ class _HomeScreenState extends State<HomeScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           ShaderMask(
-            shaderCallback: (b) => const LinearGradient(
-              colors: [_pinkStart, _orangeEnd],
+            shaderCallback: (b) => LinearGradient(
+              colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
             ).createShader(b),
             child: const Text(
               'Lince',
@@ -396,11 +389,11 @@ class _HomeScreenState extends State<HomeScreen>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
-        child: Icon(icon, color: _textSecondary, size: 20),
+        child: Icon(icon, color: Theme.of(context).textTheme.bodyMedium?.color, size: 20),
       ),
     );
   }
@@ -450,17 +443,17 @@ class _HomeScreenState extends State<HomeScreen>
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: _surface,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border:
-                          Border.all(color: Colors.white.withOpacity(0.06)),
+                          Border.all(color: Colors.white.withValues(alpha: 0.06)),
                     ),
                     child: Icon(
                       unseenCount > 0
                           ? Icons.notifications_rounded
                           : Icons.notifications_none_rounded,
                       color:
-                          unseenCount > 0 ? _pinkStart : _textSecondary,
+                          unseenCount > 0 ? Theme.of(context).primaryColor : Theme.of(context).textTheme.bodyMedium?.color,
                       size: 20,
                     ),
                   ),
@@ -478,8 +471,8 @@ class _HomeScreenState extends State<HomeScreen>
                           minHeight: 18,
                         ),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [_pinkStart, _orangeEnd],
+                          gradient: LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                           ),
                           shape: unseenCount > 9
                               ? BoxShape.rectangle
@@ -487,10 +480,10 @@ class _HomeScreenState extends State<HomeScreen>
                           borderRadius: unseenCount > 9
                               ? BorderRadius.circular(9)
                               : null,
-                          border: Border.all(color: _bg, width: 2),
+                          border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: _pinkStart.withOpacity(0.5),
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
                               blurRadius: 6,
                             ),
                           ],
@@ -531,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -544,9 +537,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildCardStack() {
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation(_pinkStart),
+          valueColor: AlwaysStoppedAnimation(Theme.of(context).primaryColor),
         ),
       );
     }
@@ -602,13 +595,13 @@ class _HomeScreenState extends State<HomeScreen>
                 Positioned(
                   top: 40,
                   left: 24,
-                  child: _buildStamp('LIKE', _matchGreen, _swipeProgress),
+                  child: _buildStamp('LIKE', Theme.of(context).colorScheme.tertiary, _swipeProgress),
                 ),
               if (_swipeProgress < -0.15)
                 Positioned(
                   top: 40,
                   right: 24,
-                  child: _buildStamp('NOPE', _pinkStart, -_swipeProgress),
+                  child: _buildStamp('NOPE', Theme.of(context).colorScheme.primary, -_swipeProgress),
                 ),
             ],
           ),
@@ -656,7 +649,7 @@ class _HomeScreenState extends State<HomeScreen>
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.45),
+            color: Colors.black.withValues(alpha: 0.45),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -674,16 +667,16 @@ class _HomeScreenState extends State<HomeScreen>
                     loadingBuilder: (_, child, progress) => progress == null
                         ? child
                         : Container(
-                            color: _surface,
-                            child: const Center(
+                            color: Theme.of(context).cardColor,
+                            child: Center(
                               child: CircularProgressIndicator(
                                 valueColor:
-                                    AlwaysStoppedAnimation(_pinkStart),
+                                    AlwaysStoppedAnimation(Theme.of(context).primaryColor),
                                 strokeWidth: 2,
                               ),
                             ),
                           ),
-                    errorBuilder: (_, __, ___) => _photoPlaceholder(),
+                    errorBuilder: (_, _, _) => _photoPlaceholder(),
                   )
                 : _photoPlaceholder(),
             Positioned.fill(
@@ -695,9 +688,9 @@ class _HomeScreenState extends State<HomeScreen>
                     colors: [
                       Colors.transparent,
                       Colors.transparent,
-                      Colors.black.withOpacity(0.3),
-                      Colors.black.withOpacity(0.75),
-                      Colors.black.withOpacity(0.93),
+                      Colors.black.withValues(alpha: 0.3),
+                      Colors.black.withValues(alpha: 0.75),
+                      Colors.black.withValues(alpha: 0.93),
                     ],
                     stops: const [0, 0.40, 0.60, 0.80, 1.0],
                   ),
@@ -706,7 +699,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             if (dimmed)
               Positioned.fill(
-                child: Container(color: _bg.withOpacity(0.15)),
+                child: Container(color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.15)),
               ),
             Positioned(
               left: 22,
@@ -720,8 +713,8 @@ class _HomeScreenState extends State<HomeScreen>
                     children: [
                       Text(
                         nombre,
-                        style: const TextStyle(
-                          color: _textPrimary,
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                           fontSize: 26,
                           fontWeight: FontWeight.w800,
                           height: 1.1,
@@ -731,8 +724,8 @@ class _HomeScreenState extends State<HomeScreen>
                         const SizedBox(width: 10),
                         Text(
                           edad,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
                             fontSize: 22,
                             fontWeight: FontWeight.w400,
                           ),
@@ -744,13 +737,13 @@ class _HomeScreenState extends State<HomeScreen>
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        const Icon(Icons.school_outlined,
-                            color: _pinkStart, size: 14),
+                        Icon(Icons.school_outlined,
+                            color: Theme.of(context).colorScheme.primary, size: 14),
                         const SizedBox(width: 5),
                         Text(
                           carrera,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
                             fontSize: 13,
                           ),
                         ),
@@ -763,8 +756,8 @@ class _HomeScreenState extends State<HomeScreen>
                       bio,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white60,
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white60,
                         fontSize: 13,
                         height: 1.4,
                       ),
@@ -790,10 +783,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _photoPlaceholder() {
     return Container(
-      color: _surface,
+      color: Theme.of(context).cardColor,
       child: Center(
         child: Icon(Icons.person_rounded,
-            color: Colors.white.withOpacity(0.15), size: 100),
+            color: Colors.white.withValues(alpha: 0.15), size: 100),
       ),
     );
   }
@@ -802,9 +795,9 @@ class _HomeScreenState extends State<HomeScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Text(
         label,
@@ -850,14 +843,14 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  _pinkStart.withOpacity(0.15),
-                  _orangeEnd.withOpacity(0.1)
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                  Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1)
                 ],
               ),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.favorite_border_rounded,
-                color: _pinkStart.withOpacity(0.6), size: 44),
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6), size: 44),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -869,11 +862,11 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+            Text(
             'Vuelve más tarde para descubrir\nnuevas personas',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: _textSecondary,
+              color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
               fontSize: 14,
               height: 1.5,
             ),
@@ -887,12 +880,12 @@ class _HomeScreenState extends State<HomeScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [_pinkStart, _orangeEnd]),
+                gradient: LinearGradient(
+                    colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: _pinkStart.withOpacity(0.3),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     blurRadius: 14,
                     offset: const Offset(0, 5),
                   ),
@@ -926,8 +919,8 @@ class _HomeScreenState extends State<HomeScreen>
             size: 48,
             iconSize: 22,
             gradient: null,
-            color: _surface,
-            iconColor: _orangeEnd,
+            color: Theme.of(context).cardColor,
+            iconColor: Theme.of(context).colorScheme.secondary,
             onTap: hasProfiles && _currentIndex > 0
                 ? () => setState(() {
                       _currentIndex--;
@@ -940,8 +933,8 @@ class _HomeScreenState extends State<HomeScreen>
             size: 64,
             iconSize: 32,
             gradient: null,
-            color: _surface,
-            iconColor: _pinkStart,
+            color: Theme.of(context).cardColor,
+            iconColor: Theme.of(context).colorScheme.primary,
             onTap: hasProfiles ? () => _doSwipe(like: false) : null,
           ),
           _actionButton(
@@ -949,7 +942,7 @@ class _HomeScreenState extends State<HomeScreen>
             size: 64,
             iconSize: 30,
             gradient:
-                const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+                LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
             color: null,
             iconColor: Colors.white,
             onTap: hasProfiles ? () => _doSwipe(like: true) : null,
@@ -959,8 +952,8 @@ class _HomeScreenState extends State<HomeScreen>
             size: 48,
             iconSize: 22,
             gradient: null,
-            color: _surface,
-            iconColor: const Color(0xFF64B5F6),
+            color: Theme.of(context).cardColor,
+            iconColor: Theme.of(context).primaryIconTheme.color ?? Colors.blue,
             onTap: hasProfiles ? () => _doSwipe(like: true) : null,
           ),
         ],
@@ -989,18 +982,18 @@ class _HomeScreenState extends State<HomeScreen>
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: (gradient != null ? _pinkStart : Colors.black)
-                  .withOpacity(gradient != null ? 0.35 : 0.25),
+              color: (gradient != null ? Theme.of(context).colorScheme.primary : Colors.black)
+                  .withValues(alpha: gradient != null ? 0.35 : 0.25),
               blurRadius: gradient != null ? 16 : 8,
               offset: const Offset(0, 4),
             ),
           ],
           border: color != null
-              ? Border.all(color: Colors.white.withOpacity(0.07))
+              ? Border.all(color: Colors.white.withValues(alpha: 0.07))
               : null,
         ),
         child: Icon(icon,
-            color: iconColor.withOpacity(onTap != null ? 1.0 : 0.3),
+            color: iconColor.withValues(alpha: onTap != null ? 1.0 : 0.3),
             size: iconSize),
       ),
     );
@@ -1009,7 +1002,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _showFilterModal() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -1037,10 +1030,10 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(height: 25),
-                  const Center(
+                  Center(
                     child: Text("AJUSTES DE BÚSQUEDA",
                         style: TextStyle(
-                            color: _textPrimary,
+                            color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.5)),
@@ -1053,7 +1046,7 @@ class _HomeScreenState extends State<HomeScreen>
                         _currentFilters.maxEdad.toDouble()),
                     min: 18,
                     max: 60,
-                    activeColor: _pinkStart,
+                    activeColor: Theme.of(context).colorScheme.primary,
                     inactiveColor: Colors.white12,
                     onChanged: (values) {
                       setModalState(() {
@@ -1162,20 +1155,20 @@ class _HomeScreenState extends State<HomeScreen>
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
         decoration: BoxDecoration(
           gradient:
-              const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+              LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: _pinkStart.withOpacity(0.3),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
               blurRadius: 14,
               offset: const Offset(0, 5),
             ),
           ],
         ),
-        child: const Text(
+        child: Text(
           'Aplicar Filtros',
           style: TextStyle(
-            color: Colors.white,
+            color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 15,
           ),
@@ -1189,13 +1182,13 @@ class _HomeScreenState extends State<HomeScreen>
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title,
-            style: const TextStyle(
-                color: _textPrimary,
+            style: TextStyle(
+                color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
                 fontSize: 15,
                 fontWeight: FontWeight.w600)),
         Text(value,
-            style: const TextStyle(
-                color: _pinkStart,
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 15,
                 fontWeight: FontWeight.bold)),
       ],
@@ -1234,18 +1227,18 @@ class _HomeScreenState extends State<HomeScreen>
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: isSelected
-                  ? _pinkStart.withOpacity(0.1)
-                  : Colors.white.withOpacity(0.05),
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                  : Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isSelected ? _pinkStart : Colors.white10,
+                color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white10,
                 width: 1.5,
               ),
             ),
             child: Text(
               carrera,
               style: TextStyle(
-                color: isSelected ? Colors.white : _textSecondary,
+                color: isSelected ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
                 fontWeight:
                     isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 13,
@@ -1278,17 +1271,17 @@ class _HomeScreenState extends State<HomeScreen>
         return FilterChip(
           label: Text(interes),
           selected: isSelected,
-          selectedColor: _pinkStart.withOpacity(0.2),
-          checkmarkColor: _pinkStart,
+          selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+          checkmarkColor: Theme.of(context).colorScheme.primary,
           labelStyle: TextStyle(
-            color: isSelected ? _pinkStart : _textSecondary,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
-          backgroundColor: Colors.white.withOpacity(0.05),
+          backgroundColor: Colors.white.withValues(alpha: 0.05),
           shape: StadiumBorder(
             side: BorderSide(
-              color: isSelected ? _pinkStart : Colors.white10,
+              color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white10,
             ),
           ),
           onSelected: (bool selected) {
@@ -1313,7 +1306,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _showSearchModal() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1344,8 +1337,6 @@ class _MatchOverlay extends StatefulWidget {
 
 class _MatchOverlayState extends State<_MatchOverlay>
     with TickerProviderStateMixin {
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
 
   late AnimationController _bgController;
   late AnimationController _contentController;
@@ -1468,8 +1459,8 @@ class _MatchOverlayState extends State<_MatchOverlay>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                const Color(0xFF1A0A10).withOpacity(0.97),
-                const Color(0xFF0D0408).withOpacity(0.97),
+                const Color(0xFF1A0A10).withValues(alpha: 0.97),
+                const Color(0xFF0D0408).withValues(alpha: 0.97),
               ],
             ),
           ),
@@ -1479,7 +1470,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
               children: [
                 AnimatedBuilder(
                   animation: _heartController,
-                  builder: (_, __) => Transform.scale(
+                  builder: (_, _) => Transform.scale(
                     scale: _heartScale.value,
                     child: Transform.rotate(
                       angle: _heartRotation.value,
@@ -1494,15 +1485,15 @@ class _MatchOverlayState extends State<_MatchOverlay>
                             width: 80,
                             height: 80,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [_pinkStart, _orangeEnd],
+                              gradient: LinearGradient(
+                                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: _pinkStart.withOpacity(0.6 *
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6 *
                                       _heartScale.value.clamp(0.0, 1.0)),
                                   blurRadius: 30,
                                   spreadRadius: 5,
@@ -1520,20 +1511,20 @@ class _MatchOverlayState extends State<_MatchOverlay>
                 const SizedBox(height: 32),
                 AnimatedBuilder(
                   animation: _contentController,
-                  builder: (_, __) => Transform.translate(
+                  builder: (_, _) => Transform.translate(
                     offset: Offset(0, _textSlide.value),
                     child: Opacity(
                       opacity: _contentOpacity.value,
                       child: Column(
                         children: [
                           ShaderMask(
-                            shaderCallback: (b) => const LinearGradient(
-                              colors: [_pinkStart, _orangeEnd],
+                            shaderCallback: (b) => LinearGradient(
+                              colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                             ).createShader(b),
-                            child: const Text(
+                            child: Text(
                               '¡Es un Match!',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                                 fontSize: 34,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.5,
@@ -1544,8 +1535,8 @@ class _MatchOverlayState extends State<_MatchOverlay>
                           Text(
                             'Tú y $matchNombre\nse han gustado mutuamente',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70,
                               fontSize: 16,
                               height: 1.5,
                             ),
@@ -1558,7 +1549,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                 const SizedBox(height: 40),
                 AnimatedBuilder(
                   animation: _avatarController,
-                  builder: (_, __) => Row(
+                  builder: (_, _) => Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Transform.translate(
@@ -1568,13 +1559,13 @@ class _MatchOverlayState extends State<_MatchOverlay>
                           initials: (currentUser?.displayName ?? 'Yo')
                               .substring(0, 1)
                               .toUpperCase(),
-                          borderColors: const [_pinkStart, _orangeEnd],
+                          borderColors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                         ),
                       ),
                       Container(
                         margin: const EdgeInsets.symmetric(horizontal: 12),
-                        child: const Icon(Icons.favorite,
-                            color: _pinkStart, size: 22),
+                        child: Icon(Icons.favorite,
+                            color: Theme.of(context).colorScheme.primary, size: 22),
                       ),
                       Transform.translate(
                         offset: Offset(_rightAvatarSlide.value, 0),
@@ -1583,7 +1574,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                           initials: matchNombre.isNotEmpty
                               ? matchNombre.substring(0, 1).toUpperCase()
                               : '?',
-                          borderColors: const [_orangeEnd, _pinkStart],
+                          borderColors: [Theme.of(context).colorScheme.secondary, Theme.of(context).colorScheme.primary],
                         ),
                       ),
                     ],
@@ -1592,7 +1583,7 @@ class _MatchOverlayState extends State<_MatchOverlay>
                 const SizedBox(height: 44),
                 AnimatedBuilder(
                   animation: _contentController,
-                  builder: (_, __) => Opacity(
+                  builder: (_, _) => Opacity(
                     opacity: _contentOpacity.value,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1604,12 +1595,12 @@ class _MatchOverlayState extends State<_MatchOverlay>
                               width: double.infinity,
                               height: 54,
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                    colors: [_pinkStart, _orangeEnd]),
+                                gradient: LinearGradient(
+                                    colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: _pinkStart.withOpacity(0.4),
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                                     blurRadius: 20,
                                     offset: const Offset(0, 6),
                                   ),
@@ -1640,10 +1631,10 @@ class _MatchOverlayState extends State<_MatchOverlay>
                               width: double.infinity,
                               height: 54,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.07),
+                                color: Colors.white.withValues(alpha: 0.07),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                    color: Colors.white.withOpacity(0.15)),
+                                    color: Colors.white.withValues(alpha: 0.15)),
                               ),
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1702,7 +1693,7 @@ class _MatchAvatar extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: borderColors.first.withOpacity(0.5),
+            color: borderColors.first.withValues(alpha: 0.5),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -1712,7 +1703,7 @@ class _MatchAvatar extends StatelessWidget {
       child: ClipOval(
         child: photoUrl != null && photoUrl!.isNotEmpty
             ? Image.network(photoUrl!, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _placeholder())
+                errorBuilder: (_, _, _) => _placeholder())
             : _placeholder(),
       ),
     );
@@ -1771,7 +1762,7 @@ class _MatchParticles extends StatelessWidget {
                 height: 5,
                 decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.7)),
+                    color: Colors.white.withValues(alpha: 0.7)),
               ),
             ),
         ],
@@ -1821,12 +1812,8 @@ class _SearchSheet extends StatefulWidget {
 }
 
 class _SearchSheetState extends State<_SearchSheet> {
-  static const _surface = Color(0xFF1E1E1E);
-  static const _inputFill = Color(0xFF252525);
   static const _pinkStart = Color(0xFFFF4D6D);
   static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   final TextEditingController _searchCtrl = TextEditingController();
   final String _currentUserId =
@@ -1907,25 +1894,44 @@ class _SearchSheetState extends State<_SearchSheet> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) {
-        return Padding(
+Widget build(BuildContext context) {
+  // 1. Definimos la paleta dinámica según el brillo del tema
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Estas variables locales ahora son "punteros" al tema global
+    final surface = theme.cardColor; 
+    final textPrimary = theme.textTheme.bodyLarge?.color;
+    final textSecondary = theme.textTheme.bodyMedium?.color;
+    final inputFill = theme.inputDecorationTheme.fillColor;
+    final borderColor = theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? Colors.transparent;
+    final closeBtnBg = theme.elevatedButtonTheme.style?.backgroundColor?.resolve({}) ?? Colors.white.withValues(alpha: 0.05);
+
+  return DraggableScrollableSheet(
+    initialChildSize: 0.9,
+    minChildSize: 0.5,
+    maxChildSize: 0.95,
+    expand: false,
+    builder: (context, scrollController) {
+      return Container(
+        // Aplicamos el color de fondo dinámico al contenedor principal
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
           child: Column(
             children: [
               const SizedBox(height: 12),
+              // El indicador (handle) superior
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white12,
+                  color: isDark ? Colors.white10 : Colors.black12,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1953,11 +1959,11 @@ class _SearchSheetState extends State<_SearchSheet> {
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
+                          color: closeBtnBg, // Color de fondo dinámico
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded,
-                            color: _textSecondary, size: 18),
+                        child: Icon(Icons.close_rounded,
+                            color: textSecondary, size: 18), // Color dinámico
                       ),
                     ),
                   ],
@@ -1968,27 +1974,27 @@ class _SearchSheetState extends State<_SearchSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: _inputFill,
+                    color: inputFill, // Color dinámico
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: Colors.white.withOpacity(0.06)),
+                    border: Border.all(color: borderColor), // Borde dinámico
                   ),
                   child: TextField(
                     controller: _searchCtrl,
                     autofocus: true,
-                    style: const TextStyle(
-                        color: _textPrimary, fontSize: 15),
+                    style: TextStyle(
+                        color: textPrimary, fontSize: 15), // Color dinámico
                     onChanged: _onQueryChanged,
                     decoration: InputDecoration(
                       hintText: 'Nombre, apellido o carrera...',
-                      hintStyle: const TextStyle(
-                          color: Color(0xFF555555), fontSize: 14),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: _textSecondary, size: 20),
+                      hintStyle: TextStyle(
+                          color: isDark ? const Color(0xFF555555) : const Color(0xFFB0B0B0), 
+                          fontSize: 14),
+                      prefixIcon: Icon(Icons.search_rounded,
+                          color: textSecondary, size: 20), // Color dinámico
                       suffixIcon: _query.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.close_rounded,
-                                  color: _textSecondary, size: 18),
+                              icon: Icon(Icons.close_rounded,
+                                  color: textSecondary, size: 18),
                               onPressed: () {
                                 _searchCtrl.clear();
                                 _onQueryChanged('');
@@ -2008,12 +2014,15 @@ class _SearchSheetState extends State<_SearchSheet> {
               ),
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
+
 
   Widget _buildResults(ScrollController scrollController) {
+
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -2044,7 +2053,7 @@ class _SearchSheetState extends State<_SearchSheet> {
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 6),
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (_, i) => _buildTile(_results[i]),
     );
   }
@@ -2053,7 +2062,14 @@ class _SearchSheetState extends State<_SearchSheet> {
     required IconData icon,
     required String title,
     required String sub,
+
   }) {
+    // 1. Obtenemos el esquema de colores (se resuelve en tiempo de ejecución)
+  final colors = Theme.of(context).colorScheme;
+
+  // 2. Usamos 'final' en lugar de 'const' para estas variables
+  final textPrimary = colors.onSurface;          // Reemplaza a _textPrimary
+  final textSecondary = colors.onSurfaceVariant; // Reemplaza a _textSecondary
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -2066,20 +2082,20 @@ class _SearchSheetState extends State<_SearchSheet> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _pinkStart.withOpacity(0.12),
-                    _orangeEnd.withOpacity(0.08)
+                    _pinkStart.withValues(alpha: 0.12),
+                    _orangeEnd.withValues(alpha: 0.08)
                   ],
                 ),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon,
-                  color: _pinkStart.withOpacity(0.6), size: 30),
+                  color: _pinkStart.withValues(alpha: 0.6), size: 30),
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
-                color: _textPrimary,
+              style: TextStyle(
+                color: textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -2088,8 +2104,8 @@ class _SearchSheetState extends State<_SearchSheet> {
             Text(
               sub,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _textSecondary,
+              style: TextStyle(
+                color: textSecondary,
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -2116,7 +2132,7 @@ class _SearchSheetState extends State<_SearchSheet> {
           PageRouteBuilder(
             pageBuilder: (_, a, b) =>
                 UserProfileScreen(userId: userId),
-            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+            transitionsBuilder: (_, anim, _, child) => SlideTransition(
               position: Tween<Offset>(
                 begin: const Offset(1, 0),
                 end: Offset.zero,
@@ -2157,11 +2173,6 @@ class _SearchResultTile extends StatefulWidget {
 }
 
 class _SearchResultTileState extends State<_SearchResultTile> {
-  static const _card = Color(0xFF252525);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   bool _alreadyLiked = false;
   bool _sendingLike = false;
@@ -2203,7 +2214,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Le diste like a ${_nombreCompleto()} 💖'),
-        backgroundColor: _pinkStart,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
         shape: RoundedRectangleBorder(
@@ -2228,7 +2239,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
       widget.onUnblocked();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Has desbloqueado a ${_nombreCompleto()}'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),
@@ -2236,7 +2247,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('No se pudo desbloquear. Intenta de nuevo.'),
-        backgroundColor: _pinkStart,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),
@@ -2263,10 +2274,10 @@ class _SearchResultTileState extends State<_SearchResultTile> {
               ],
             ),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
             boxShadow: [
               BoxShadow(
-                color: _pinkStart.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 30,
                 spreadRadius: 4,
               ),
@@ -2279,13 +2290,13 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_pinkStart, _orangeEnd],
+                  gradient: LinearGradient(
+                    colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                   ),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                        color: _pinkStart.withOpacity(0.5), blurRadius: 20),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), blurRadius: 20),
                   ],
                 ),
                 child:
@@ -2293,8 +2304,8 @@ class _SearchResultTileState extends State<_SearchResultTile> {
               ),
               const SizedBox(height: 16),
               ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
+                shaderCallback: (b) => LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                 ).createShader(b),
                 child: const Text(
                   '¡Es un Match!',
@@ -2322,16 +2333,16 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                   width: double.infinity,
                   height: 48,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                    gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                     ),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
                       'Ver en Matches',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -2342,11 +2353,11 @@ class _SearchResultTileState extends State<_SearchResultTile> {
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: () => Navigator.pop(ctx),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Text(
                     'Seguir buscando',
-                    style: TextStyle(color: _textSecondary, fontSize: 13),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6) ?? Colors.white60, fontSize: 13),
                   ),
                 ),
               ),
@@ -2396,12 +2407,12 @@ class _SearchResultTileState extends State<_SearchResultTile> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: _card,
+          color: Theme.of(context).cardColor.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: widget.isBlocked
-                ? _pinkStart.withOpacity(0.3)
-                : Colors.white.withOpacity(0.05),
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.05),
           ),
         ),
         child: Row(
@@ -2413,8 +2424,8 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                   height: 48,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                    gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -2433,7 +2444,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                                 ? Image.network(
                                     foto,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
+                                    errorBuilder: (_, _, _) =>
                                         _placeholder(nombre),
                                   )
                                 : _placeholder(nombre),
@@ -2442,7 +2453,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                             ? Image.network(
                                 foto,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
+                                errorBuilder: (_, _, _) =>
                                     _placeholder(nombre),
                               )
                             : _placeholder(nombre)),
@@ -2454,7 +2465,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.55),
+                          color: Theme.of(context).inputDecorationTheme.fillColor?.withValues(alpha: 0.55) ?? Colors.white.withValues(alpha: 0.55),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.block_rounded,
@@ -2474,8 +2485,8 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                       Flexible(
                         child: Text(
                           nombre,
-                          style: const TextStyle(
-                            color: _textPrimary,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2486,8 +2497,8 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                         const SizedBox(width: 6),
                         Text(
                           edad,
-                          style: const TextStyle(
-                            color: _textSecondary,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8) ?? Colors.white70,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -2501,21 +2512,21 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: _pinkStart.withOpacity(0.15),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color: _pinkStart.withOpacity(0.4)),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.block_rounded,
-                              color: _pinkStart, size: 11),
+                              color: Theme.of(context).colorScheme.primary, size: 11),
                           SizedBox(width: 3),
                           Text(
                             'BLOQUEADO',
                             style: TextStyle(
-                              color: _pinkStart,
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.8,
@@ -2528,14 +2539,14 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.school_outlined,
-                            color: _pinkStart, size: 12),
+                        Icon(Icons.school_outlined,
+                            color: Theme.of(context).colorScheme.primary, size: 12),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             carrera,
-                            style: const TextStyle(
-                              color: _textSecondary,
+                            style: TextStyle(
+                              color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8) ?? Colors.white70,
                               fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -2555,25 +2566,25 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _pinkStart.withOpacity(0.12),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                     border:
-                        Border.all(color: _pinkStart.withOpacity(0.4)),
+                        Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
                   ),
                   child: _unblocking
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 14,
                           height: 14,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor:
-                                AlwaysStoppedAnimation(_pinkStart),
+                                AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                           ),
                         )
-                      : const Text(
+                      : Text(
                           'Desbloquear',
                           style: TextStyle(
-                            color: _pinkStart,
+                            color: Theme.of(context).colorScheme.primary,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2589,39 +2600,39 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                   height: 42,
                   decoration: BoxDecoration(
                     gradient: _alreadyLiked
-                        ? const LinearGradient(
-                            colors: [_pinkStart, _orangeEnd],
+                        ? LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
                         : null,
                     color: _alreadyLiked
                         ? null
-                        : _pinkStart.withOpacity(0.1),
+                        : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: _alreadyLiked
                           ? Colors.transparent
-                          : _pinkStart.withOpacity(0.3),
+                          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                     ),
                     boxShadow: _alreadyLiked
                         ? [
                             BoxShadow(
-                              color: _pinkStart.withOpacity(0.4),
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                               blurRadius: 10,
                             ),
                           ]
                         : [],
                   ),
                   child: _sendingLike
-                      ? const Center(
+                      ? Center(
                           child: SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor:
-                                  AlwaysStoppedAnimation(_pinkStart),
+                                  AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                             ),
                           ),
                         )
@@ -2631,7 +2642,7 @@ class _SearchResultTileState extends State<_SearchResultTile> {
                               : Icons.favorite_border_rounded,
                           color: _alreadyLiked
                               ? Colors.white
-                              : _pinkStart,
+                              : Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
                           size: 20,
                         ),
                 ),
@@ -2651,12 +2662,6 @@ class _LikesReceivedSheet extends StatelessWidget {
   final String currentUserId;
 
   const _LikesReceivedSheet({required this.currentUserId});
-
-  static const _surface = Color(0xFF1E1E1E);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   @override
   Widget build(BuildContext context) {
@@ -2685,11 +2690,11 @@ class _LikesReceivedSheet extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _pinkStart.withOpacity(0.12),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.favorite_rounded,
-                        color: _pinkStart, size: 20),
+                    child: Icon(Icons.favorite_rounded,
+                        color: Theme.of(context).textTheme.bodyMedium?.color, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -2697,8 +2702,8 @@ class _LikesReceivedSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         ShaderMask(
-                          shaderCallback: (b) => const LinearGradient(
-                            colors: [_pinkStart, _orangeEnd],
+                          shaderCallback: (b) => LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                           ).createShader(b),
                           child: const Text(
                             'Te dieron like',
@@ -2710,10 +2715,10 @@ class _LikesReceivedSheet extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
+                        Text(
                           'Personas interesadas en ti',
                           style:
-                              TextStyle(color: _textSecondary, fontSize: 12),
+                              TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12),
                         ),
                       ],
                     ),
@@ -2723,11 +2728,11 @@ class _LikesReceivedSheet extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.close_rounded,
-                          color: _textSecondary, size: 18),
+                      child: Icon(Icons.close_rounded,
+                          color: Theme.of(context).textTheme.bodyMedium?.color, size: 18),
                     ),
                   ),
                 ],
@@ -2742,16 +2747,16 @@ class _LikesReceivedSheet extends StatelessWidget {
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
+                    return Center(
                       child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation(_pinkStart),
+                        valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                         strokeWidth: 2,
                       ),
                     );
                   }
 
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return _buildEmptyState();
+                    return _buildEmptyState(context);
                   }
 
                   // Filtramos likes de usuarios bloqueados (en cualquier dirección).
@@ -2765,7 +2770,7 @@ class _LikesReceivedSheet extends StatelessWidget {
                         return !blockedIds.contains(from);
                       }).toList();
 
-                      if (docs.isEmpty) return _buildEmptyState();
+                      if (docs.isEmpty) return _buildEmptyState(context);
 
                       docs.sort((a, b) {
                         final ta = (a.data() as Map<String, dynamic>)['timestamp']
@@ -2782,7 +2787,7 @@ class _LikesReceivedSheet extends StatelessWidget {
                         controller: scrollController,
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         itemCount: docs.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 6),
+                        separatorBuilder: (_, _) => const SizedBox(height: 6),
                         itemBuilder: (_, i) {
                           final data = docs[i].data() as Map<String, dynamic>;
                           final fromId = data['from'] as String? ?? '';
@@ -2805,7 +2810,7 @@ class _LikesReceivedSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState( BuildContext context ) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -2818,30 +2823,30 @@ class _LikesReceivedSheet extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _pinkStart.withOpacity(0.12),
-                    _orangeEnd.withOpacity(0.08)
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.08)
                   ],
                 ),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.favorite_border_rounded,
-                  color: _pinkStart.withOpacity(0.5), size: 36),
+                  color: Theme.of(context).colorScheme.primary, size: 36),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Sin likes aún',
               style: TextStyle(
-                color: _textPrimary,
+                color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Cuando alguien te dé like,\nlo verás aquí primero.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: _textSecondary,
+                color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8) ?? Colors.white70,
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -2873,11 +2878,6 @@ class _LikeReceivedTile extends StatefulWidget {
 }
 
 class _LikeReceivedTileState extends State<_LikeReceivedTile> {
-  static const _card = Color(0xFF252525);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   Map<String, dynamic>? _user;
   bool _loading = true;
@@ -2956,10 +2956,10 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
               ],
             ),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
             boxShadow: [
               BoxShadow(
-                color: _pinkStart.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 30,
                 spreadRadius: 4,
               ),
@@ -2972,13 +2972,13 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_pinkStart, _orangeEnd],
+                  gradient: LinearGradient(
+                    colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                   ),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                        color: _pinkStart.withOpacity(0.5), blurRadius: 20),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), blurRadius: 20),
                   ],
                 ),
                 child:
@@ -2986,8 +2986,8 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
               ),
               const SizedBox(height: 16),
               ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
+                shaderCallback: (b) => LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                 ).createShader(b),
                 child: const Text(
                   '¡Es un Match!',
@@ -3015,8 +3015,8 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                   width: double.infinity,
                   height: 48,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                    gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                     ),
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -3045,7 +3045,7 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
       PageRouteBuilder(
         pageBuilder: (_, a, b) =>
             UserProfileScreen(userId: widget.fromUserId),
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+        transitionsBuilder: (_, anim, _, child) => SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1, 0),
             end: Offset.zero,
@@ -3090,16 +3090,16 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
       return Container(
         height: 72,
         decoration: BoxDecoration(
-          color: _card,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: const Center(
+        child: Center(
           child: SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(_pinkStart),
+              valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
             ),
           ),
         ),
@@ -3118,9 +3118,9 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: _card,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Row(
           children: [
@@ -3129,8 +3129,8 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
               height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -3141,7 +3141,7 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                     ? Image.network(
                         foto,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholder(nombre),
+                        errorBuilder: (_, _, _) => _placeholder(nombre),
                       )
                     : _placeholder(nombre),
               ),
@@ -3156,8 +3156,8 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                       Flexible(
                         child: Text(
                           nombre,
-                          style: const TextStyle(
-                            color: _textPrimary,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
@@ -3168,8 +3168,8 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                         const SizedBox(width: 6),
                         Text(
                           edad,
-                          style: const TextStyle(
-                            color: _textSecondary,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyMedium?.color ?? Color(0xFFAAAAAA),
                             fontSize: 13,
                           ),
                         ),
@@ -3183,23 +3183,23 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                         Flexible(
                           child: Text(
                             carrera,
-                            style: const TextStyle(
-                              color: _textSecondary,
+                            style: TextStyle(
+                              color: Theme.of(context).textTheme.bodyMedium?.color ?? Color(0xFFAAAAAA),
                               fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Text('·',
+                        Text('·',
                             style: TextStyle(
-                                color: _textSecondary, fontSize: 12)),
+                                color: Theme.of(context).textTheme.bodyMedium?.color ?? Color(0xFFAAAAAA), fontSize: 12)),
                         const SizedBox(width: 6),
                       ],
                       Text(
                         _formatTime(widget.timestamp),
-                        style: const TextStyle(
-                          color: _pinkStart,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                         ),
@@ -3218,38 +3218,38 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                 height: 42,
                 decoration: BoxDecoration(
                   gradient: _alreadyLikedBack
-                      ? const LinearGradient(
-                          colors: [_pinkStart, _orangeEnd],
+                      ? LinearGradient(
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
                       : null,
                   color: _alreadyLikedBack
                       ? null
-                      : _pinkStart.withOpacity(0.1),
+                      : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: _alreadyLikedBack
                         ? Colors.transparent
-                        : _pinkStart.withOpacity(0.3),
+                        : Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                   ),
                   boxShadow: _alreadyLikedBack
                       ? [
                           BoxShadow(
-                              color: _pinkStart.withOpacity(0.4),
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                               blurRadius: 10),
                         ]
                       : [],
                 ),
                 child: _sending
-                    ? const Center(
+                    ? Center(
                         child: SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor:
-                                AlwaysStoppedAnimation(_pinkStart),
+                                AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                           ),
                         ),
                       )
@@ -3259,7 +3259,7 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
                             : Icons.favorite_border_rounded,
                         color: _alreadyLikedBack
                             ? Colors.white
-                            : _pinkStart,
+                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
                         size: 20,
                       ),
               ),
@@ -3286,3 +3286,17 @@ class _LikeReceivedTileState extends State<_LikeReceivedTile> {
     );
   }
 }
+
+/*
+// 1. Definimos la paleta dinámica según el brillo del tema
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Estas variables locales ahora son "punteros" al tema global
+    final surface = theme.cardColor; 
+    final textPrimary = theme.textTheme.bodyLarge?.color;
+    final textSecondary = theme.textTheme.bodyMedium?.color;
+    final inputFill = theme.inputDecorationTheme.fillColor;
+    final borderColor = theme.inputDecorationTheme.enabledBorder?.borderSide.color ?? Colors.transparent;
+    final closeBtnBg = theme.elevatedButtonTheme.style?.backgroundColor?.resolve({}) ?? Colors.white.withOpacity(0.05);
+*/

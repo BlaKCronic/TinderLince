@@ -23,14 +23,6 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  // ── Paleta ────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _card = Color(0xFF1E1E1E);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
-  static const _inputFill = Color(0xFF2A2A2A);
 
   @override
   void initState() {
@@ -75,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen>
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder(
           pageBuilder: (_, a, b) => const MainNavScreen(),
-          transitionsBuilder: (_, anim, __, child) =>
+          transitionsBuilder: (_, anim, _, child) =>
               FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 400),
         ),
@@ -102,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen>
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: _pinkStart,
+      backgroundColor: Theme.of(context).colorScheme.primary,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
@@ -111,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnim,
@@ -131,8 +123,8 @@ class _LoginScreenState extends State<LoginScreen>
                     // ── Título ───────────────────────────────────────────
                     Center(
                       child: ShaderMask(
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [_pinkStart, _orangeEnd],
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                         ).createShader(bounds),
                         child: const Text(
                           'Lince',
@@ -146,17 +138,17 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Center(
+                    Center(
                       child: Text(
                         'Encuentra tu match perfecto',
-                        style: TextStyle(color: _textSecondary, fontSize: 14),
+                        style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 14),
                       ),
                     ),
                     const SizedBox(height: 44),
                     // ── Campos ───────────────────────────────────────────
-                    const Text('Correo electrónico',
+                    Text('Correo electrónico',
                         style: TextStyle(
-                            color: _textSecondary,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
                             fontSize: 13,
                             fontWeight: FontWeight.w500)),
                     const SizedBox(height: 8),
@@ -169,9 +161,9 @@ class _LoginScreenState extends State<LoginScreen>
                           v == null || v.isEmpty ? 'Campo requerido' : null,
                     ),
                     const SizedBox(height: 20),
-                    const Text('Contraseña',
+                    Text('Contraseña',
                         style: TextStyle(
-                            color: _textSecondary,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
                             fontSize: 13,
                             fontWeight: FontWeight.w500)),
                     const SizedBox(height: 8),
@@ -185,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen>
                           _obscurePassword
                               ? Icons.visibility_off_outlined
                               : Icons.visibility_outlined,
-                          color: _textSecondary,
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                           size: 20,
                         ),
                         onPressed: () => setState(
@@ -200,8 +192,8 @@ class _LoginScreenState extends State<LoginScreen>
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {},
-                        child: const Text('¿Olvidaste tu contraseña?',
-                            style: TextStyle(color: _pinkStart, fontSize: 13)),
+                        child: Text('¿Olvidaste tu contraseña?',
+                            style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 13)),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -215,9 +207,9 @@ class _LoginScreenState extends State<LoginScreen>
                     // ── Divider ───────────────────────────────────────────
                     Row(children: [
                       const Expanded(child: Divider(color: Color(0xFF2E2E2E))),
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('o', style: TextStyle(color: _textSecondary)),
+                        child: Text('o', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
                       ),
                       const Expanded(child: Divider(color: Color(0xFF2E2E2E))),
                     ]),
@@ -227,16 +219,16 @@ class _LoginScreenState extends State<LoginScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text('¿No tienes cuenta? ',
+                          Text('¿No tienes cuenta? ',
                               style: TextStyle(
-                                  color: _textSecondary, fontSize: 14)),
+                                  color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 14)),
                           GestureDetector(
                             onTap: () => Navigator.push(
                               context,
                               PageRouteBuilder(
                                 pageBuilder: (_, a, b) =>
                                     const RegisterScreen(),
-                                transitionsBuilder: (_, anim, __, child) =>
+                                transitionsBuilder: (_, anim, _, child) =>
                                     FadeTransition(
                                         opacity: anim, child: child),
                                 transitionDuration:
@@ -244,8 +236,8 @@ class _LoginScreenState extends State<LoginScreen>
                               ),
                             ),
                             child: ShaderMask(
-                              shaderCallback: (b) => const LinearGradient(
-                                colors: [_pinkStart, _orangeEnd],
+                              shaderCallback: (b) => LinearGradient(
+                                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                               ).createShader(b),
                               child: const Text(
                                 'Regístrate',
@@ -276,15 +268,15 @@ class _LoginScreenState extends State<LoginScreen>
       width: 72,
       height: 72,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_pinkStart, _orangeEnd],
+          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
         ),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: _pinkStart.withOpacity(0.4),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
             blurRadius: 24,
             spreadRadius: 2,
           ),
@@ -311,14 +303,14 @@ class _LoginScreenState extends State<LoginScreen>
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(color: _textPrimary, fontSize: 15),
+      style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 15),
-        prefixIcon: Icon(icon, color: _textSecondary, size: 20),
+        prefixIcon: Icon(icon, color: Theme.of(context).textTheme.bodyMedium?.color, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: _inputFill,
+        fillColor: Theme.of(context).inputDecorationTheme.fillColor,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
@@ -327,21 +319,21 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2E2E2E)),
+          borderSide: const BorderSide(color: Color(0xFF2E2E2E)), //cambiar
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _pinkStart, width: 1.5),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _pinkStart),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: _pinkStart, width: 1.5),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
         ),
-        errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
+        errorStyle: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12),
       ),
     );
   }
@@ -358,17 +350,17 @@ class _LoginScreenState extends State<LoginScreen>
         gradient: onPressed == null
             ? const LinearGradient(
                 colors: [Color(0xFF555555), Color(0xFF555555)])
-            : const LinearGradient(
+            : LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [_pinkStart, _orangeEnd],
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
               ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: onPressed == null
             ? []
             : [
                 BoxShadow(
-                  color: _pinkStart.withOpacity(0.35),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -392,8 +384,8 @@ class _LoginScreenState extends State<LoginScreen>
                   )
                 : Text(
                     label,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge!.color,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,

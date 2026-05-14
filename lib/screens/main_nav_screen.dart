@@ -16,12 +16,6 @@ class MainNavScreen extends StatefulWidget {
 class _MainNavScreenState extends State<MainNavScreen> {
   int _selectedIndex = 0;
 
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1A1A1A);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textSecondary = Color(0xFFAAAAAA);
-
   final String _currentUserId =
       FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -34,7 +28,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: IndexedStack(
         index: _selectedIndex,
         children: _screens,
@@ -79,13 +73,13 @@ class _MainNavScreenState extends State<MainNavScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: _surface,
+        color: Theme.of(context).cardColor,
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.07), width: 1),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07), width: 1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -157,20 +151,20 @@ class _MainNavScreenState extends State<MainNavScreen> {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? _pinkStart.withOpacity(0.12)
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: isSelected
                       ? ShaderMask(
-                          shaderCallback: (b) => const LinearGradient(
-                            colors: [_pinkStart, _orangeEnd],
+                          shaderCallback: (b) => LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                           ).createShader(b),
                           child: Icon(activeIcon,
                               color: Colors.white, size: 26),
                         )
                       : Icon(inactiveIcon,
-                          color: _textSecondary, size: 24),
+                          color: Theme.of(context).textTheme.bodyMedium?.color, size: 24),
                 ),
                 // Badge
                 if (badgeCount > 0)
@@ -187,8 +181,8 @@ class _MainNavScreenState extends State<MainNavScreen> {
                         minHeight: 18,
                       ),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [_pinkStart, _orangeEnd],
+                        gradient: LinearGradient(
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                         ),
                         shape: badgeCount > 9
                             ? BoxShape.rectangle
@@ -196,10 +190,10 @@ class _MainNavScreenState extends State<MainNavScreen> {
                         borderRadius: badgeCount > 9
                             ? BorderRadius.circular(9)
                             : null,
-                        border: Border.all(color: _surface, width: 2),
+                        border: Border.all(color: Theme.of(context).cardColor, width: 2),
                         boxShadow: [
                           BoxShadow(
-                            color: _pinkStart.withOpacity(0.6),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
                             blurRadius: 8,
                           ),
                         ],
@@ -223,7 +217,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
-                color: isSelected ? _pinkStart : _textSecondary,
+                color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).textTheme.bodyMedium?.color,
                 fontSize: 10,
                 fontWeight:
                     isSelected ? FontWeight.w600 : FontWeight.w400,
