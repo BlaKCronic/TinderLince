@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import 'edit_profile_screen.dart';
 
+// Importamos LinceThemes para usar las constantes de marca (como el rosa)
+import '../main.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -22,14 +25,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   String? _errorMessage;
 
   // ── Paleta ─────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _card = Color(0xFF252525);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _matchGreen = Color(0xFF4CAF50);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
+  //static const _bg = Color(0xFF121212);
+  //static const _surface = Color(0xFF1E1E1E);
+  //static const _card = Color(0xFF252525);
+
+  //static const _textPrimary = Colors.white;
+  //static const _textSecondary = Color(0xFFAAAAAA);
 
   static const _generoLabels = {
     'hombre': '👨 Hombre',
@@ -111,24 +112,24 @@ class _ProfileScreenState extends State<ProfileScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _surface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Cerrar sesión',
+        title: Text('Cerrar sesión',
             style: TextStyle(
-                color: _textPrimary, fontWeight: FontWeight.w700)),
-        content: const Text('¿Estás seguro?',
-            style: TextStyle(color: _textSecondary)),
+                color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w700)),
+        content: Text('¿Estás seguro?',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: _textSecondary)),
+            child: Text('Cancelar',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child:
-                const Text('Salir', style: TextStyle(color: _pinkStart)),
+                Text('Salir', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
           ),
         ],
       ),
@@ -150,7 +151,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       _loadUserProfile();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('¡Perfil actualizado!'),
-        backgroundColor: _matchGreen,
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
         behavior: SnackBarBehavior.floating,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -214,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
           ? _buildLoading()
           : _errorMessage != null
@@ -224,9 +225,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildLoading() {
-    return const Center(
+    return Center(
       child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation(_pinkStart),
+        valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
       ),
     );
   }
@@ -238,15 +239,15 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded,
-                color: _pinkStart, size: 56),
+            Icon(Icons.error_outline_rounded,
+                color: Theme.of(context).colorScheme.primary, size: 56),
             const SizedBox(height: 16),
             Text(_errorMessage!,
                 textAlign: TextAlign.center,
                 style:
-                    const TextStyle(color: _textSecondary, fontSize: 15)),
+                    TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 15)),
             const SizedBox(height: 24),
-            _gradientButton('Reintentar', _loadUserProfile),
+            _gradientButton('Reintentar', _loadUserProfile, context),
           ],
         ),
       ),
@@ -254,12 +255,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildContent() {
+    final colors = Theme.of(context).colorScheme;
     return Stack(
       children: [
         RefreshIndicator(
           onRefresh: _loadUserProfile,
-          color: _pinkStart,
-          backgroundColor: _surface,
+          color: colors.primary,
+          backgroundColor: colors.surface,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -287,9 +289,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (_isLoggingOut)
           Container(
             color: Colors.black54,
-            child: const Center(
+            child: Center(
               child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(_pinkStart)),
+                  valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary  )),
             ),
           ),
       ],
@@ -297,11 +299,41 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   SliverAppBar _buildSliverAppBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
     return SliverAppBar(
       expandedHeight: 300,
       pinned: true,
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       elevation: 0,
+
+      // --- BOTÓN DE TEMA (ESQUINA SUPERIOR IZQUIERDA) ---
+      leading: Center(
+        child: Container(
+          width: 38,
+          height: 38,
+          margin: const EdgeInsets.only(left: 12),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
+            shape: BoxShape.circle,
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            icon: Icon(
+              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              color: colors.primary,
+              size: 20,
+            ),
+            onPressed: () {
+              // Llamamos a la función global en MyApp
+              MainApp.of(context).changeTheme(
+                isDark ? ThemeMode.light : ThemeMode.dark,
+              );
+            },
+          ),
+        ),
+      ),
+
       actions: [
         _appBarIcon(Icons.edit_outlined, _navigateToEditProfile),
         _appBarIcon(
@@ -316,27 +348,30 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _appBarIcon(IconData icon, VoidCallback? onTap) {
+    final colors = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: Colors.white70, size: 20),
+        child: Icon(icon, color: colors.onSurfaceVariant, size: 20),
       ),
     );
   }
 
   Widget _buildHeader() {
+    //final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [_pinkStart.withOpacity(0.15), _bg],
+          colors: [colors.primary.withValues(alpha: 0.15), Theme.of(context).scaffoldBackgroundColor],
         ),
       ),
       child: SafeArea(
@@ -348,8 +383,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(height: 16),
             Text(
               _nombreCompleto,
-              style: const TextStyle(
-                color: _textPrimary,
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
               ),
@@ -360,8 +395,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd]),
+                  gradient: LinearGradient(
+                      colors: [colors.primary, colors.secondary]),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -381,19 +416,20 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildAvatar() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: 110,
       height: 110,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [_pinkStart, _orangeEnd],
+        gradient: LinearGradient(
+          colors: [colors.primary, colors.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: _pinkStart.withOpacity(0.5),
+            color: colors.primary.withValues(alpha: 0.5),
             blurRadius: 24,
             spreadRadius: 2,
           ),
@@ -408,10 +444,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 loadingBuilder: (_, child, progress) => progress == null
                     ? child
                     : Container(
-                        color: _card,
-                        child: const Center(
+                        color: Theme.of(context).inputDecorationTheme.fillColor,
+                        child: Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation(_pinkStart),
+                            valueColor: AlwaysStoppedAnimation(colors.primary),
                             strokeWidth: 2,
                           ),
                         ),
@@ -425,7 +461,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _defaultAvatar() {
     return Container(
-      color: _card,
+      color: Theme.of(context).inputDecorationTheme.fillColor,
       child: const Icon(Icons.person_rounded,
           color: Color(0xFF444444), size: 52),
     );
@@ -457,24 +493,25 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _infoChip(IconData? icon, String label) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: _surface,
+        color: Theme.of(context).cardColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: _pinkStart, size: 14),
+            Icon(icon, color: colors.primary, size: 14),
             const SizedBox(width: 5),
           ],
           Text(
             label,
-            style: const TextStyle(
-                color: _textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -482,18 +519,20 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildBioCard() {
+    final colors = Theme.of(context).colorScheme;
+    //final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).cardColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: colors.outline.withValues(alpha: 0.05)),//originalmente era Colors.white.withOpacity(0.05)
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -503,8 +542,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ShaderMask(
-              shaderCallback: (b) => const LinearGradient(
-                colors: [_pinkStart, _orangeEnd],
+              shaderCallback: (b) => LinearGradient(
+                colors: [colors.primary, colors.secondary],
               ).createShader(b),
               child: const Text(
                 'BIOGRAFÍA',
@@ -521,7 +560,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               _bio,
               style: TextStyle(
                 color: _bio == 'Sin biografía aún'
-                    ? _textSecondary
+                    ? Theme.of(context).textTheme.bodyMedium?.color
                     : const Color(0xFFDDDDDD),
                 fontSize: 14,
                 height: 1.6,
@@ -537,6 +576,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildIntereses() {
+    final colors = Theme.of(context).colorScheme;
     return SizedBox(
       height: 36,
       child: ListView.separated(
@@ -548,14 +588,14 @@ class _ProfileScreenState extends State<ProfileScreen>
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: _pinkStart.withOpacity(0.12),
+            color: colors.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
           ),
           child: Text(
             _interesesNombres[i],
-            style: const TextStyle(
-                color: _pinkStart,
+            style: TextStyle(
+                color: colors.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600),
           ),
@@ -567,24 +607,25 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildTabBar() {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).cardColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(14),
         ),
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
             gradient:
-                const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+                LinearGradient(colors: [colors.primary, colors.secondary]),
             borderRadius: BorderRadius.circular(12),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
           labelColor: Colors.white,
-          unselectedLabelColor: _textSecondary,
+          unselectedLabelColor: Theme.of(context).textTheme.bodyMedium?.color,
           labelStyle: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
@@ -659,7 +700,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.3), blurRadius: 8),
+              color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
         ],
       ),
       child: ClipRRect(
@@ -668,7 +709,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           url,
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => Container(
-            color: _card,
+            color: Theme.of(context).inputDecorationTheme.fillColor,
             child: const Icon(Icons.broken_image_outlined,
                 color: Color(0xFF444444), size: 28),
           ),
@@ -702,7 +743,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _gradientButton(String label, VoidCallback onTap) {
+  Widget _gradientButton(String label, VoidCallback onTap, BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -710,18 +752,18 @@ class _ProfileScreenState extends State<ProfileScreen>
             const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
         decoration: BoxDecoration(
           gradient:
-              const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+              LinearGradient(colors: [colors.primary, colors.secondary]),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: _pinkStart.withOpacity(0.3),
+                color: colors.primary.withValues(alpha: 0.3),
                 blurRadius: 14,
                 offset: const Offset(0, 5))
           ],
         ),
         child: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
+            style: TextStyle(
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontWeight: FontWeight.w700,
                 fontSize: 15)),
       ),

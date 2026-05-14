@@ -20,15 +20,6 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   bool _isLoading = true;
   String? _errorMessage;
 
-  // ── Paleta ─────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _card = Color(0xFF252525);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
-
   static const _generoLabels = {
     'hombre': '👨 Hombre',
     'mujer': '👩 Mujer',
@@ -137,7 +128,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
           ? _buildLoading()
           : _errorMessage != null
@@ -147,9 +138,9 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   }
 
   Widget _buildLoading() {
-    return const Center(
+    return Center(
       child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation(_pinkStart),
+        valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
       ),
     );
   }
@@ -166,13 +157,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: _pinkStart, size: 56),
+                    Icon(Icons.error_outline_rounded,
+                        color: Theme.of(context).colorScheme.primary, size: 56),
                     const SizedBox(height: 16),
                     Text(_errorMessage!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            color: _textSecondary, fontSize: 15)),
+                        style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 15)),
                   ],
                 ),
               ),
@@ -226,7 +217,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     return SliverAppBar(
       expandedHeight: 300,
       pinned: true,
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       elevation: 0,
       leading: Padding(
         padding: const EdgeInsets.all(8),
@@ -234,7 +225,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           onTap: () => Navigator.pop(context),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.arrow_back_ios_new_rounded,
@@ -255,7 +246,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [_pinkStart.withOpacity(0.15), _bg],
+          colors: [Theme.of(context).colorScheme.primary.withValues(alpha: 0.15), Theme.of(context).scaffoldBackgroundColor],
         ),
       ),
       child: SafeArea(
@@ -267,8 +258,8 @@ class _UserProfileScreenState extends State<UserProfileScreen>
             const SizedBox(height: 16),
             Text(
               _nombreCompleto,
-              style: const TextStyle(
-                color: _textPrimary,
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
               ),
@@ -279,14 +270,14 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd]),
+                  gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   _carrera,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -305,14 +296,14 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       height: 110,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [_pinkStart, _orangeEnd],
+        gradient: LinearGradient(
+          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: _pinkStart.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
             blurRadius: 24,
             spreadRadius: 2,
           ),
@@ -327,10 +318,10 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                 loadingBuilder: (_, child, progress) => progress == null
                     ? child
                     : Container(
-                        color: _card,
-                        child: const Center(
+                        color: Theme.of(context).cardColor,
+                        child: Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation(_pinkStart),
+                            valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                             strokeWidth: 2,
                           ),
                         ),
@@ -344,7 +335,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
 
   Widget _defaultAvatar() {
     return Container(
-      color: _card,
+      color: Theme.of(context).cardColor,
       child: const Icon(Icons.person_rounded,
           color: Color(0xFF444444), size: 52),
     );
@@ -378,21 +369,21 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: _surface,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: _pinkStart, size: 14),
+            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 14),
             const SizedBox(width: 5),
           ],
           Text(
             label,
-            style: const TextStyle(
-                color: _textPrimary,
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500),
           ),
@@ -409,12 +400,12 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -424,13 +415,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ShaderMask(
-              shaderCallback: (b) => const LinearGradient(
-                colors: [_pinkStart, _orangeEnd],
+              shaderCallback: (b) => LinearGradient(
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
               ).createShader(b),
-              child: const Text(
+              child: Text(
                 'BIOGRAFÍA',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.8,
@@ -442,7 +433,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
               _bio,
               style: TextStyle(
                 color: bioEmpty
-                    ? _textSecondary
+                    ? Theme.of(context).textTheme.bodyMedium?.color
                     : const Color(0xFFDDDDDD),
                 fontSize: 14,
                 height: 1.6,
@@ -466,14 +457,14 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         itemBuilder: (_, i) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: _pinkStart.withOpacity(0.12),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
           ),
           child: Text(
             _interesesNombres[i],
-            style: const TextStyle(
-                color: _pinkStart,
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600),
           ),
@@ -487,19 +478,19 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: _surface,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(14),
         ),
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
-            gradient: const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+            gradient: LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
             borderRadius: BorderRadius.circular(12),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
           labelColor: Colors.white,
-          unselectedLabelColor: _textSecondary,
+          unselectedLabelColor: Theme.of(context).textTheme.bodyMedium?.color,
           labelStyle: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
@@ -573,7 +564,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
         ],
       ),
       child: ClipRRect(
@@ -582,7 +573,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           url,
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => Container(
-            color: _card,
+            color: Theme.of(context).cardColor,
             child: const Icon(Icons.broken_image_outlined,
                 color: Color(0xFF444444), size: 28),
           ),

@@ -26,15 +26,6 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
-  // ── Paleta ─────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _inputFill = Color(0xFF252525);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _matchGreen = Color(0xFF4CAF50);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -135,7 +126,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error al enviar: $e'),
-          backgroundColor: _pinkStart,
+          backgroundColor: Theme.of(context).colorScheme.primary,
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -153,7 +144,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void _showOptionsMenu() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -228,7 +219,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    final color = isDestructive ? _pinkStart : _textPrimary;
+    final color = isDestructive ? Theme.of(context).colorScheme.primary : Theme.of(context).textTheme.bodyMedium?.color;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -241,8 +232,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               height: 42,
               decoration: BoxDecoration(
                 color: isDestructive
-                    ? _pinkStart.withOpacity(0.12)
-                    : Colors.white.withOpacity(0.06),
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                    : Theme.of(context).cardColor.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -263,8 +254,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: _textSecondary,
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
                       fontSize: 12,
                     ),
                   ),
@@ -272,7 +263,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               ),
             ),
             Icon(Icons.chevron_right_rounded,
-                color: _textSecondary.withOpacity(0.5), size: 20),
+                color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.5), size: 20),
           ],
         ),
       ),
@@ -303,7 +294,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void _showUserDetails() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -322,7 +313,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void _showReportDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -338,7 +329,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             content: Text(bloqueado
                 ? 'Reporte enviado y usuario bloqueado.'
                 : 'Reporte enviado. Gracias por ayudar a mantener la comunidad segura.'),
-            backgroundColor: _matchGreen,
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12)),
@@ -362,9 +353,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: _surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _pinkStart.withOpacity(0.3)),
+            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -373,28 +364,28 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: _pinkStart.withOpacity(0.12),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.block_rounded,
-                    color: _pinkStart, size: 30),
+                child: Icon(Icons.block_rounded,
+                    color: Theme.of(context).colorScheme.primary, size: 30),
               ),
               const SizedBox(height: 16),
               Text(
                 '¿Bloquear a ${widget.otherUserName}?',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _textPrimary,
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'Se eliminará tu match y la conversación. Ya no podrán verse ni enviarse mensajes. Podrás desbloquearlo más tarde desde la búsqueda.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: _textSecondary,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
                   fontSize: 13,
                   height: 1.5,
                 ),
@@ -408,15 +399,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF252525),
+                          color: Theme.of(context).inputDecorationTheme.fillColor,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.08)),
+                              color: Colors.white.withValues(alpha: 0.08)),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text('Cancelar',
                               style: TextStyle(
-                                  color: _textSecondary,
+                                  color: Theme.of(context).textTheme.bodyMedium?.color,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600)),
                         ),
@@ -434,12 +425,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [_pinkStart, _orangeEnd]),
+                          gradient: LinearGradient(
+                              colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: _pinkStart.withOpacity(0.35),
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -468,9 +459,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
+      builder: (_) => Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation(_pinkStart),
+          valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
         ),
       ),
     );
@@ -487,7 +478,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       Navigator.pop(context); // sale del chat
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Has bloqueado a ${widget.otherUserName}'),
-        backgroundColor: _matchGreen,
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
         behavior: SnackBarBehavior.floating,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -495,7 +486,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('No se pudo bloquear. Intenta de nuevo.'),
-        backgroundColor: _pinkStart,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         behavior: SnackBarBehavior.floating,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -509,7 +500,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -522,12 +513,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: _surface,
+      backgroundColor: Theme.of(context).cardColor,
       elevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.light,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-            color: Colors.white, size: 20),
+        icon: Icon(Icons.arrow_back_ios_new_rounded,
+            color: Theme.of(context).inputDecorationTheme.iconColor, size: 20),
         onPressed: () => Navigator.pop(context),
       ),
       title: GestureDetector(
@@ -539,8 +530,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [_pinkStart, _orangeEnd],
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -564,21 +555,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 children: [
                   Text(
                     widget.otherUserName,
-                    style: const TextStyle(
-                      color: _textPrimary,
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   ShaderMask(
-                    shaderCallback: (b) => const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                    shaderCallback: (b) => LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                     ).createShader(b),
-                    child: const Text(
+                    child: Text(
                       '❤ Match',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -592,7 +583,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.more_vert_rounded, color: _textSecondary),
+          icon: Icon(Icons.more_vert_rounded, color: Theme.of(context).textTheme.bodyMedium?.color),
           onPressed: _showOptionsMenu,
           tooltip: 'Opciones',
         ),
@@ -601,7 +592,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         preferredSize: const Size.fromHeight(1),
         child: Container(
           height: 1,
-          color: Colors.white.withOpacity(0.07),
+          color: Colors.white.withValues(alpha: 0.07),
         ),
       ),
     );
@@ -632,9 +623,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
+          return Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(_pinkStart),
+              valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
               strokeWidth: 2,
             ),
           );
@@ -698,31 +689,31 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    _pinkStart.withOpacity(0.15),
-                    _orangeEnd.withOpacity(0.1)
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1)
                   ],
                 ),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.favorite_rounded,
-                  color: _pinkStart, size: 40),
+              child: Icon(Icons.favorite_rounded,
+                  color: Theme.of(context).colorScheme.primary, size: 40),
             ),
             const SizedBox(height: 20),
             Text(
               '¡Haz match con ${widget.otherUserName}!',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _textPrimary,
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Sé el primero en enviar un mensaje\ny comenzar la conversación.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: _textSecondary,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -742,9 +733,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: _surface,
+        color: Theme.of(context).cardColor,
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.07)),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
         ),
       ),
       child: Row(
@@ -758,12 +749,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 return Container(
                   constraints: const BoxConstraints(maxHeight: 120),
                   decoration: BoxDecoration(
-                    color: _inputFill,
+                    color: Theme.of(context).inputDecorationTheme.fillColor,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: _focusNode.hasFocus
-                          ? _pinkStart.withOpacity(0.5)
-                          : Colors.white.withOpacity(0.08),
+                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                          : Colors.white.withValues(alpha: 0.08),
                     ),
                   ),
                   child: Row(
@@ -777,8 +768,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           maxLines: null,
                           keyboardType: TextInputType.multiline,
                           textCapitalization: TextCapitalization.sentences,
-                          style: const TextStyle(
-                            color: _textPrimary,
+                          style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
                             fontSize: 15,
                           ),
                           decoration: const InputDecoration(
@@ -815,18 +806,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   height: 48,
                   decoration: BoxDecoration(
                     gradient: hasText
-                        ? const LinearGradient(
-                            colors: [_pinkStart, _orangeEnd],
+                        ? LinearGradient(
+                            colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
                         : null,
-                    color: hasText ? null : const Color(0xFF2A2A2A),
+                    color: hasText ? null : Theme.of(context).inputDecorationTheme.fillColor,
                     shape: BoxShape.circle,
                     boxShadow: hasText
                         ? [
                             BoxShadow(
-                              color: _pinkStart.withOpacity(0.4),
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             )
@@ -849,7 +840,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           Icons.send_rounded,
                           color: hasText
                               ? Colors.white
-                              : const Color(0xFF555555),
+                              : Theme.of(context).inputDecorationTheme.hintStyle?.color ?? const Color(0xFF555555),
                           size: 20,
                         ),
                 ),
@@ -880,11 +871,6 @@ class _UserDetailsSheet extends StatefulWidget {
 }
 
 class _UserDetailsSheetState extends State<_UserDetailsSheet> {
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _card = Color(0xFF252525);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   Map<String, dynamic>? _userData;
   Map<String, String> _catalogoIntereses = {};
@@ -955,11 +941,11 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
       expand: false,
       builder: (context, scrollController) {
         if (_loading) {
-          return const Center(
+          return Center(
             child: Padding(
               padding: EdgeInsets.all(40),
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(_pinkStart),
+                valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
                 strokeWidth: 2,
               ),
             ),
@@ -967,12 +953,12 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
         }
 
         if (_userData == null) {
-          return const Center(
+          return Center(
             child: Padding(
               padding: EdgeInsets.all(40),
               child: Text(
                 'No se pudo cargar la información',
-                style: TextStyle(color: _textSecondary),
+                style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
               ),
             ),
           );
@@ -1025,14 +1011,14 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                   height: 68,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                    gradient: LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: _pinkStart.withOpacity(0.35),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                         blurRadius: 16,
                       ),
                     ],
@@ -1056,16 +1042,16 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                     children: [
                       Text(
                         nombre,
-                        style: const TextStyle(
-                          color: _textPrimary,
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 4),
                       ShaderMask(
-                        shaderCallback: (b) => const LinearGradient(
-                          colors: [_pinkStart, _orangeEnd],
+                        shaderCallback: (b) => LinearGradient(
+                          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                         ).createShader(b),
                         child: const Text(
                           'DETALLES',
@@ -1109,9 +1095,9 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _card,
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.06)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
                 ),
                 child: Text(
                   bio,
@@ -1151,7 +1137,7 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
 
   Widget _nameFallback(String nombre) {
     return Container(
-      color: _card,
+      color: Theme.of(context).cardColor,
       child: Center(
         child: Text(
           nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
@@ -1178,10 +1164,10 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: _pinkStart.withOpacity(0.12),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: _pinkStart, size: 18),
+            child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1190,8 +1176,8 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: _textSecondary,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.3,
@@ -1200,8 +1186,8 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: _textPrimary,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1217,12 +1203,12 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
   Widget _sectionTitle(String text, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: _pinkStart, size: 16),
+        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 16),
         const SizedBox(width: 6),
         Text(
           text.toUpperCase(),
-          style: const TextStyle(
-            color: _textPrimary,
+          style: TextStyle(
+            color: Theme.of(context).textTheme.bodyLarge?.color,
             fontSize: 12,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.5,
@@ -1236,14 +1222,14 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: _pinkStart.withOpacity(0.12),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _pinkStart.withOpacity(0.3)),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: _pinkStart,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -1263,11 +1249,11 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
         height: 52,
         decoration: BoxDecoration(
           gradient:
-              const LinearGradient(colors: [_pinkStart, _orangeEnd]),
+              LinearGradient(colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: _pinkStart.withOpacity(0.35),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 5),
             ),
@@ -1318,11 +1304,6 @@ class _ReportSheet extends StatefulWidget {
 }
 
 class _ReportSheetState extends State<_ReportSheet> {
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _card = Color(0xFF252525);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
 
   static const _motivos = [
     {'key': 'contenido_inapropiado', 'label': 'Contenido inapropiado', 'icon': Icons.block_rounded},
@@ -1381,7 +1362,7 @@ class _ReportSheetState extends State<_ReportSheet> {
       setState(() => _enviando = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Error al enviar reporte: $e'),
-        backgroundColor: _pinkStart,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         behavior: SnackBarBehavior.floating,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1421,21 +1402,21 @@ class _ReportSheetState extends State<_ReportSheet> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _pinkStart.withOpacity(0.12),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.flag_rounded,
-                      color: _pinkStart, size: 22),
+                  child: Icon(Icons.flag_rounded,
+                      color: Theme.of(context).colorScheme.primary, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Reportar usuario',
                         style: TextStyle(
-                          color: _textPrimary,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1443,8 +1424,8 @@ class _ReportSheetState extends State<_ReportSheet> {
                       const SizedBox(height: 2),
                       Text(
                         'Estás reportando a ${widget.reportadoNombre}',
-                        style: const TextStyle(
-                            color: _textSecondary, fontSize: 12),
+                        style: TextStyle(
+                            color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 12),
                       ),
                     ],
                   ),
@@ -1452,10 +1433,10 @@ class _ReportSheetState extends State<_ReportSheet> {
               ],
             ),
             const SizedBox(height: 22),
-            const Text(
+            Text(
               'Motivo del reporte',
               style: TextStyle(
-                color: _textPrimary,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -1475,13 +1456,13 @@ class _ReportSheetState extends State<_ReportSheet> {
                         horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: selected
-                          ? _pinkStart.withOpacity(0.1)
-                          : _card,
+                          ? Theme.of(context).colorScheme.primary .withValues(alpha: 0.1)
+                          : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: selected
-                            ? _pinkStart
-                            : Colors.white.withOpacity(0.06),
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.white.withValues(alpha: 0.06),
                         width: selected ? 1.5 : 1,
                       ),
                     ),
@@ -1489,7 +1470,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                       children: [
                         Icon(
                           m['icon'] as IconData,
-                          color: selected ? _pinkStart : _textSecondary,
+                          color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).textTheme.bodyMedium?.color,
                           size: 18,
                         ),
                         const SizedBox(width: 12),
@@ -1498,8 +1479,8 @@ class _ReportSheetState extends State<_ReportSheet> {
                             m['label'] as String,
                             style: TextStyle(
                               color: selected
-                                  ? _textPrimary
-                                  : const Color(0xFFDDDDDD),
+                                  ? Theme.of(context).textTheme.bodyLarge?.color
+                                  : Theme.of(context).textTheme.bodyMedium?.color,
                               fontSize: 14,
                               fontWeight: selected
                                   ? FontWeight.w600
@@ -1508,8 +1489,8 @@ class _ReportSheetState extends State<_ReportSheet> {
                           ),
                         ),
                         if (selected)
-                          const Icon(Icons.check_circle_rounded,
-                              color: _pinkStart, size: 20),
+                          Icon(Icons.check_circle_rounded,
+                              color: Theme.of(context).colorScheme.primary, size: 20),
                       ],
                     ),
                   ),
@@ -1517,10 +1498,10 @@ class _ReportSheetState extends State<_ReportSheet> {
               );
             }),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Descripción (opcional)',
               style: TextStyle(
-                color: _textPrimary,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -1530,15 +1511,15 @@ class _ReportSheetState extends State<_ReportSheet> {
               controller: _descripcionCtrl,
               maxLines: 3,
               maxLength: 300,
-              style: const TextStyle(
-                  color: _textPrimary, fontSize: 14),
+              style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Cuéntanos más detalles...',
                 hintStyle:
                     const TextStyle(color: Color(0xFF555555), fontSize: 14),
                 filled: true,
-                fillColor: _card,
-                counterStyle: const TextStyle(color: _textSecondary),
+                fillColor: Theme.of(context).cardColor,
+                counterStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 12),
                 border: OutlineInputBorder(
@@ -1548,12 +1529,12 @@ class _ReportSheetState extends State<_ReportSheet> {
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.06)),
+                      color: Colors.white.withValues(alpha: 0.06)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide:
-                      const BorderSide(color: _pinkStart, width: 1.5),
+                      BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
                 ),
               ),
             ),
@@ -1570,13 +1551,13 @@ class _ReportSheetState extends State<_ReportSheet> {
                     horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: _bloquearTambien
-                      ? _pinkStart.withOpacity(0.08)
-                      : _card,
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                      : Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _bloquearTambien
-                        ? _pinkStart.withOpacity(0.4)
-                        : Colors.white.withOpacity(0.06),
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)
+                        : Colors.white.withValues(alpha: 0.06),
                   ),
                 ),
                 child: Row(
@@ -1587,12 +1568,12 @@ class _ReportSheetState extends State<_ReportSheet> {
                       height: 22,
                       decoration: BoxDecoration(
                         gradient: _bloquearTambien
-                            ? const LinearGradient(
-                                colors: [_pinkStart, _orangeEnd])
+                            ? LinearGradient(
+                                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary])
                             : null,
                         color: _bloquearTambien
                             ? null
-                            : Colors.white.withOpacity(0.05),
+                            : Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: _bloquearTambien
@@ -1615,17 +1596,17 @@ class _ReportSheetState extends State<_ReportSheet> {
                             'Bloquear también a este usuario',
                             style: TextStyle(
                               color: _bloquearTambien
-                                  ? _textPrimary
+                                  ? Theme.of(context).textTheme.bodyLarge?.color
                                   : const Color(0xFFDDDDDD),
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 2),
-                          const Text(
+                          Text(
                             'Se eliminará el match y la conversación.',
                             style: TextStyle(
-                                color: _textSecondary, fontSize: 11),
+                                color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 11),
                           ),
                         ],
                       ),
@@ -1648,17 +1629,17 @@ class _ReportSheetState extends State<_ReportSheet> {
                     child: Container(
                       height: 52,
                       decoration: BoxDecoration(
-                        color: _card,
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.08),
+                          color: Colors.white.withValues(alpha: 0.08),
                         ),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Text(
                           'Cancelar',
                           style: TextStyle(
-                            color: _textSecondary,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1680,8 +1661,8 @@ class _ReportSheetState extends State<_ReportSheet> {
                       decoration: BoxDecoration(
                         gradient: _motivoSeleccionado == null
                             ? null
-                            : const LinearGradient(
-                                colors: [_pinkStart, _orangeEnd]),
+                            : LinearGradient(
+                                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
                         color: _motivoSeleccionado == null
                             ? const Color(0xFF2A2A2A)
                             : null,
@@ -1690,7 +1671,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                             ? []
                             : [
                                 BoxShadow(
-                                  color: _pinkStart.withOpacity(0.35),
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                                   blurRadius: 14,
                                   offset: const Offset(0, 5),
                                 ),
@@ -1713,7 +1694,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                                     : 'Enviar reporte',
                                 style: TextStyle(
                                   color: _motivoSeleccionado == null
-                                      ? const Color(0xFF555555)
+                                      ? Theme.of(context).textTheme.bodyMedium?.color
                                       : Colors.white,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
@@ -1802,7 +1783,7 @@ class _MessageBubble extends StatelessWidget {
                       borderRadius: radius,
                       boxShadow: [
                         BoxShadow(
-                          color: _pinkStart.withOpacity(0.2),
+                          color: _pinkStart.withValues(alpha: 0.2),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1812,7 +1793,7 @@ class _MessageBubble extends StatelessWidget {
                       color: _surface,
                       borderRadius: radius,
                       border: Border.all(
-                          color: Colors.white.withOpacity(0.06)),
+                          color: Colors.white.withValues(alpha: 0.06)),
                     ),
               child: Column(
                 crossAxisAlignment: isMe
@@ -1832,7 +1813,7 @@ class _MessageBubble extends StatelessWidget {
                     _formatTime(timestamp),
                     style: TextStyle(
                       color: isMe
-                          ? Colors.white.withOpacity(0.6)
+                          ? Colors.white.withValues(alpha: 0.6)
                           : _textSecondary,
                       fontSize: 10,
                     ),

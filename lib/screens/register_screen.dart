@@ -24,14 +24,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  // ── Paleta ────────────────────────────────────────────────────────────────
-  static const _bg = Color(0xFF121212);
-  static const _inputFill = Color(0xFF2A2A2A);
-  static const _pinkStart = Color(0xFFFF4D6D);
-  static const _orangeEnd = Color(0xFFFF8A00);
-  static const _textPrimary = Colors.white;
-  static const _textSecondary = Color(0xFFAAAAAA);
-
   @override
   void initState() {
     super.initState();
@@ -136,7 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: _pinkStart,
+      backgroundColor: Theme.of(context).colorScheme.primary,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
@@ -145,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -168,22 +160,22 @@ class _RegisterScreenState extends State<RegisterScreen>
                 children: [
                   const SizedBox(height: 8),
                   ShaderMask(
-                    shaderCallback: (b) => const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                    shaderCallback: (b) => LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                     ).createShader(b),
-                    child: const Text(
+                    child: Text(
                       'Crear cuenta',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                         fontSize: 32,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Únete y empieza a conectar',
-                    style: TextStyle(color: _textSecondary, fontSize: 14),
+                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 14),
                   ),
                   const SizedBox(height: 36),
                   _fieldLabel('Nombre completo'),
@@ -195,8 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                     textCapitalization: TextCapitalization.words,
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Campo requerido';
-                      if (v.trim().split(' ').length < 2)
-                        return 'Ingresa nombre y apellido';
+                      if (v.trim().split(' ').length < 2){return 'Ingresa nombre y apellido';}
                       return null;
                     },
                   ),
@@ -229,7 +220,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                         _obscurePassword
                             ? Icons.visibility_off_outlined
                             : Icons.visibility_outlined,
-                        color: _textSecondary,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
                         size: 20,
                       ),
                       onPressed: () => setState(
@@ -250,19 +241,19 @@ class _RegisterScreenState extends State<RegisterScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('¿Ya tienes cuenta? ',
+                        Text('¿Ya tienes cuenta? ',
                             style:
-                                TextStyle(color: _textSecondary, fontSize: 14)),
+                                TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 14)),
                         GestureDetector(
                           onTap: () => Navigator.pop(context),
                           child: ShaderMask(
-                            shaderCallback: (b) => const LinearGradient(
-                              colors: [_pinkStart, _orangeEnd],
+                            shaderCallback: (b) => LinearGradient(
+                              colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                             ).createShader(b),
-                            child: const Text(
+                            child: Text(
                               'Inicia sesión',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -284,8 +275,8 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   Widget _fieldLabel(String label) {
     return Text(label,
-        style: const TextStyle(
-            color: _textSecondary, fontSize: 13, fontWeight: FontWeight.w500));
+        style: TextStyle(
+            color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13, fontWeight: FontWeight.w500));
   }
 
   Widget _buildTextField({
@@ -304,14 +295,14 @@ class _RegisterScreenState extends State<RegisterScreen>
       keyboardType: keyboardType,
       textCapitalization: textCapitalization,
       validator: validator,
-      style: const TextStyle(color: _textPrimary, fontSize: 15),
+      style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 15),
-        prefixIcon: Icon(icon, color: _textSecondary, size: 20),
+        hintStyle: TextStyle(color: Theme.of(context).inputDecorationTheme.hintStyle?.color, fontSize: 15),
+        prefixIcon: Icon(icon, color: Theme.of(context).textTheme.bodyMedium?.color, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: _inputFill,
+        fillColor: Theme.of(context).inputDecorationTheme.fillColor,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
@@ -319,17 +310,17 @@ class _RegisterScreenState extends State<RegisterScreen>
             borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFF2E2E2E))),
+            borderSide: BorderSide(color: Theme.of(context).inputDecorationTheme.enabledBorder!.borderSide.color, width: 1.5)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: _pinkStart)),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
         focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: _pinkStart, width: 1.5)),
-        errorStyle: const TextStyle(color: _pinkStart, fontSize: 12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
+        errorStyle: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12),
       ),
     );
   }
@@ -346,12 +337,12 @@ class _RegisterScreenState extends State<RegisterScreen>
             height: 22,
             decoration: BoxDecoration(
               gradient: _acceptTerms
-                  ? const LinearGradient(
-                      colors: [_pinkStart, _orangeEnd],
+                  ? LinearGradient(
+                      colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight)
                   : null,
-              color: _acceptTerms ? null : _inputFill,
+              color: _acceptTerms ? null : Theme.of(context).inputDecorationTheme.fillColor,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                   color: _acceptTerms ? Colors.transparent : const Color(0xFF444444),
@@ -366,16 +357,16 @@ class _RegisterScreenState extends State<RegisterScreen>
         Flexible(
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(color: _textSecondary, fontSize: 13),
+              style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13),
               children: [
                 const TextSpan(text: 'Acepto los '),
                 WidgetSpan(
                   child: GestureDetector(
                     onTap: () {},
-                    child: const Text(
+                    child: Text(
                       'Términos y Condiciones',
                       style: TextStyle(
-                        color: _pinkStart,
+                        color: Theme.of(context).colorScheme.primary,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -397,16 +388,16 @@ class _RegisterScreenState extends State<RegisterScreen>
       decoration: BoxDecoration(
         gradient: _isLoading
             ? const LinearGradient(colors: [Color(0xFF555555), Color(0xFF555555)])
-            : const LinearGradient(
+            : LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [_pinkStart, _orangeEnd]),
+                colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: _isLoading
             ? []
             : [
                 BoxShadow(
-                  color: _pinkStart.withOpacity(0.35),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 )
@@ -426,10 +417,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                     child: CircularProgressIndicator(
                         strokeWidth: 2.5,
                         valueColor: AlwaysStoppedAnimation(Colors.white)))
-                : const Text(
+                : Text(
                     'Crear cuenta',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: Theme.of(context).textTheme.bodyLarge!.color,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5),

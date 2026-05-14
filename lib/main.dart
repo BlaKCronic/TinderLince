@@ -15,24 +15,180 @@ Future<void> main() async {
   );
 
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
-
+  
   runApp(const MainApp());
 }
 
-class MainApp extends StatelessWidget {
+// 1. Convertimos MainApp en StatefulWidget para manejar el estado del tema
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
 
   @override
+  State<MainApp> createState() => MainAppState();
+
+  // 2. Este método estático permite que ProfileScreen llame a 'changeTheme'
+  static MainAppState of(BuildContext context) => 
+      context.findAncestorStateOfType<MainAppState>()!;
+}
+
+class MainAppState extends State<MainApp> {
+  // 3. Variable de estado que controla el tema (inicia en oscuro por defecto)
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  // 4. Función que será llamada por el botón del perfil
+  void changeTheme(ThemeMode themeMode) {
+    setState(() {
+      _themeMode = themeMode;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Ajustamos el estilo de la barra de sistema según el tema elegido
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: _themeMode == ThemeMode.light 
+            ? Brightness.dark 
+            : Brightness.light,
+      ),
+    );
+
     return MaterialApp(
-      
-      /* primer intento de tema dinámico, pero no funciona bien con el sistema del celular*/
+      debugShowCheckedModeBanner: false,
+      title: 'Lince App',
+      // Usamos los temas que definiste en tu clase LinceThemes
+      theme: LinceThemes.lightTheme,
+      darkTheme: LinceThemes.darkTheme,
+      // Conectamos el MaterialApp a nuestra variable de estado
+      themeMode: _themeMode, 
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Usamos los colores del tema actual en lugar de colores fijos
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(LinceThemes.pinkStart),
+              ),
+            ),
+          );
+        }
+        if (snapshot.hasData) {
+          return const MainNavScreen();
+        }
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
+// Tu clase LinceThemes se mantiene igual (está muy bien definida)
+class LinceThemes {
+  // Colores base que se mantienen en ambos (Identidad de marca)
+  static const Color pinkStart = Color(0xFFFF4D6D);
+  static const Color orangeEnd = Color(0xFFFF8A00);
+  static const Color matchGreen = Color(0xFF4CAF50);
+
+  // TEMA OSCURO (El original)
+  static final darkTheme = ThemeData(
+    colorScheme: ColorScheme.dark(
+      primary: pinkStart,
+      secondary: orangeEnd,
+      tertiary: matchGreen,
+    ),
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: const Color(0xFF121212),
+    cardColor: const Color(0xFF1E1E1E), //para _surface y card.
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: Colors.white),
+      bodyMedium: TextStyle(color: Color(0xFFAAAAAA)),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      fillColor: Color(0xFF252525),
+      hintStyle: TextStyle(color: Color( 0xFF555555)),
+      iconColor: Color.fromARGB(255, 255, 255, 255),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: Colors.white10),
+      ),
+    ),
+    buttonTheme: ButtonThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      buttonColor: pinkStart,
+      textTheme: ButtonTextTheme.primary,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF333333), // Gris oscuro para el botón de cerrar
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+    iconTheme: const IconThemeData(color: Colors.black), // Iconos negros para el tema oscuro contrasta con el fondo oscuro
+    primaryIconTheme: const IconThemeData(color: Colors.blue),
+  );
+
+  // TEMA CLARO (El nuevo)
+  static final lightTheme = ThemeData(
+    colorScheme: ColorScheme.light(
+      primary: pinkStart,
+      secondary: orangeEnd,
+      tertiary: matchGreen,
+    ),
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: const Color(0xFFF5F5F5), // Blanco hueso
+    cardColor: Colors.white,
+    textTheme: const TextTheme(
+      bodyLarge: TextStyle(color: Color(0xFF121212)), // Texto casi negro
+      bodyMedium: TextStyle(color: Color.fromARGB(255, 73, 73, 73)), // Gris suave
+    ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.white,
+      iconTheme: IconThemeData(color: Color(0xFF121212)),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      fillColor: Color(0xFFF5F5F5),
+      hintStyle: TextStyle(color: Color( 0x00555555)),
+      iconColor: Color(0xFF121212),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: Colors.black12),
+      ),
+    ),
+    buttonTheme: ButtonThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      buttonColor: pinkStart,
+      textTheme: ButtonTextTheme.primary,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFE0E0E0), // Gris claro para el botón de cerrar
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    ),
+    iconTheme: const IconThemeData(color: Color(0xFFE0E0E0)), // Iconos en gris claro para el tema claro contrasta con el fondo blanco
+    primaryIconTheme: const IconThemeData(color: Color.fromARGB(255, 0, 140, 255)),
+    /*iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: MaterialStateProperty.all(Colors.white),
+        shadowColor: MaterialStateProperty.all(pinkStart.withValues(alpha: 0.2)),
+      ),
+    ),*/
+  );
+}
+
+/* primer intento de tema dinámico, pero no funciona bien con el sistema del celular
       title: 'Lince App',
       theme: LinceThemes.lightTheme, // Tema claro
       darkTheme: LinceThemes.darkTheme, // Tema oscuro
@@ -51,121 +207,5 @@ class MainApp extends StatelessWidget {
         fontFamily: 'InterTight',
         scaffoldBackgroundColor: const Color(0xFF121212),
       ),
-      home: const AuthGate(),*/
-    );
-  }
-}
-
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF121212),
-            body: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(Color(0xFFFF4D6D)),
-              ),
-            ),
-          );
-        }
-        if (snapshot.hasData) {
-          return const MainNavScreen();   // ← ahora apunta a la nav principal
-        }
-        return const LoginScreen();
-      },
-    );
-  }
-}
-
-class LinceThemes {
-  // Colores base que se mantienen en ambos (Identidad de marca)
-  static const Color pinkStart = Color(0xFFFF4D6D);
-  static const Color orangeEnd = Color(0xFFFF8A00);
-
-  // TEMA OSCURO (El original)
-  static final darkTheme = ThemeData(
-    colorScheme: ColorScheme.dark(
-      primary: pinkStart,
-      secondary: orangeEnd,
-    ),
-    brightness: Brightness.dark,
-    scaffoldBackgroundColor: const Color(0xFF121212),
-    cardColor: const Color(0xFF1E1E1E),
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: Colors.white),
-      bodyMedium: TextStyle(color: Color(0xFFAAAAAA)),
-    ),
-    inputDecorationTheme: const InputDecorationTheme(
-      fillColor: Color(0xFF252525),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: Colors.white10) ,
-      ),
-    ),
-    buttonTheme: ButtonThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      buttonColor: pinkStart,
-      textTheme: ButtonTextTheme.primary,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF333333), // Gris oscuro para el botón de cerrar
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    ),
-  );
-
-  // TEMA CLARO (El nuevo)
-  static final lightTheme = ThemeData(
-    colorScheme: ColorScheme.light(
-      primary: pinkStart,
-      secondary: orangeEnd,
-    ),
-    brightness: Brightness.light,
-    scaffoldBackgroundColor: const Color(0xFFF5F5F5), // Blanco hueso
-    cardColor: Colors.white,
-    textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: Color(0xFF121212)), // Texto casi negro
-      bodyMedium: TextStyle(color: Color(0xFF666666)), // Gris suave
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      iconTheme: IconThemeData(color: Color(0xFF121212)),
-    ),
-    inputDecorationTheme: const InputDecorationTheme(
-      fillColor: Color(0xFFF5F5F5),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: Colors.black12),
-      ),
-    ),
-    buttonTheme: ButtonThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      buttonColor: pinkStart,
-      textTheme: ButtonTextTheme.primary,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFE0E0E0), // Gris claro para el botón de cerrar
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    ),
-  );
-}
-
-class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.dark; // Estado inicial
-
-  ThemeMode get themeMode => _themeMode;
-
-  void toggleTheme() {
-    _themeMode = (_themeMode == ThemeMode.light) ? ThemeMode.dark : ThemeMode.light;
-    notifyListeners(); // Notifica a toda la app para que se repinte
-  }
-}
+      home: const AuthGate(),
+      */*/
